@@ -30,7 +30,11 @@ export function App() {
           return;
         }
         setStatus(s);
-        if (s === 'active') setMe(await loadMe());
+        if (s === 'active') {
+          setMe(await loadMe());
+          // 圖文選單可直接開到出貨單：https://liff.line.me/{LIFF_ID}/shipment
+          if (location.pathname.startsWith('/shipment')) setRoute({ page: 'shipment' });
+        }
       })
       .catch((e: Error) => setError(e.message));
   }, []);
