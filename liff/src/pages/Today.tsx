@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { addDays, layingRate, taipeiDate, type DailyRecord, type House, type User } from '../../../shared/src';
 import type { Route } from '../App';
-import { loadMyHouses, loadRecord, type WithId } from '../data';
+import { loadDraft, loadMyHouses, loadRecord, type CloudDraft, type WithId } from '../data';
 import { openAdmin } from '../session';
 
 interface Row {
   house: WithId<House>;
   today: DailyRecord | null;
   yesterday: DailyRecord | null;
+  draft: CloudDraft | null;
 }
 
 export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) {
@@ -22,10 +23,9 @@ export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) 
       const loaded = await Promise.all(
         houses.map(async (house) => ({
           house,
-          ...(await Promise.all([loadRecord(house.id, today), loadRecord(house.id, yesterday)]).then(([t, y]) => ({
-            today: t,
-            yesterday: y,
-          }))),
+          ...(await Promise.all([loadRecord(house.id, today), loadRecord(house.id, yesterday), loadDraft(house.id, today)]).then(
+            ([t, y, d]) => ({ today: t, yesterday: y, draft: t ? null : d }),
+          )),
         })),
       );
       setRows(loaded);
@@ -54,7 +54,7 @@ export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) 
       )}
 
       <ul className="house-list">
-        {rows?.map(({ house, today: rec, yesterday: prev }) => {
+        {rows?.map(({ house, today: rec, yesterday: prev, draft }) => {
           const rate = rec ? layingRate(rec) : null;
           return (
             <li key={house.id} className="card">
@@ -62,6 +62,8 @@ export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) 
                 <span className="house-name">{house.name}</span>
                 {rec ? (
                   <span className="badge ok">已填{rate !== null && `・產蛋率 ${rate.toFixed(1)}%`}</span>
+                ) : draft ? (
+                  <span className="badge draft">填寫中{draft.updatedByName && `・${draft.updatedByName}`}</span>
                 ) : (
                   <span className="badge todo">未填寫</span>
                 )}

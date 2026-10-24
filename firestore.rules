@@ -56,6 +56,11 @@ service cloud.firestore {
       }
     }
 
+    match /drafts/{id} {
+      allow get: if resource == null && isActive();
+      allow read: if canSeeHouse(resource.data.farmId, resource.data.houseId);
+    }
+
     match /medicationEvents/{id} {
       allow read: if canSeeHouse(resource.data.farmId, resource.data.houseId);
     }

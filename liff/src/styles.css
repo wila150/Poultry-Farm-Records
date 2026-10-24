@@ -144,3 +144,7 @@ pre.summary { white-space: pre-wrap; font: inherit; font-size: 15px; }
 .field.wide { grid-column: 1 / -1; }
 .field.wide input { padding-right: 12px; }
 .req { color: var(--todo); font-weight: 600; }
+.sync { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+.sync.saved::before { content: '☁︎ '; }
+.sync.offline { color: var(--warn); }
+.badge.draft { background: var(--warn-bg); color: var(--warn); font-weight: 600; }

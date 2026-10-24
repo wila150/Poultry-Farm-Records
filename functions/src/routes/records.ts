@@ -75,9 +75,12 @@ recordsRouter.put('/records/:houseId/:date', async (req, res) => {
   if (hasErrors(result)) throw badRequest('資料有誤', result.errors);
 
   const ref = db.doc(`dailyRecords/${recordId(house.id, date)}`);
+  const draftRef = db.doc(`drafts/${recordId(house.id, date)}`);
   const created = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const now = FieldValue.serverTimestamp();
+    // 正式送出後，雲端草稿就不需要了
+    tx.delete(draftRef);
 
     if (!snap.exists) {
       tx.set(ref, {
@@ -112,4 +115,43 @@ recordsRouter.put('/records/:houseId/:date', async (req, res) => {
 
   // Phase 3：在這裡觸發異常檢查
   res.json({ ok: true, created, warnings: result.warnings });
+});
+
+const DRAFT_KEYS = new Set<string>(DAILY_RECORD_FIELDS);
+
+/**
+ * 雲端草稿：填到一半自動儲存，換手機、換瀏覽器或換人都能接著填。
+ * 存的是表單原始字串，不做防呆（還沒填完本來就可能不合理），送出時才驗證。
+ */
+recordsRouter.put('/drafts/:houseId/:date', async (req, res) => {
+  const user = requireActive(req);
+  const { date } = req.params;
+  if (!isValidDate(date)) throw badRequest('日期格式錯誤');
+  const house = await loadHouse(req.params.houseId);
+  assertCanEdit(user, house, date);
+
+  const raw = (req.body?.values ?? {}) as Record<string, unknown>;
+  const values: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof v !== 'string' || v.length > 500) continue;
+    if (DRAFT_KEYS.has(k) || /^custom\.f[0-9a-f]{8}$/.test(k)) values[k] = v;
+  }
+  await db.doc(`drafts/${recordId(house.id, date)}`).set({
+    farmId: house.farmId,
+    houseId: house.id,
+    date,
+    values,
+    updatedBy: user.id,
+    updatedByName: user.name,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  res.json({ ok: true });
+});
+
+recordsRouter.delete('/drafts/:houseId/:date', async (req, res) => {
+  const user = requireActive(req);
+  const house = await loadHouse(req.params.houseId);
+  assertCanEdit(user, house, req.params.date);
+  await db.doc(`drafts/${recordId(house.id, req.params.date)}`).delete();
+  res.json({ ok: true });
 });

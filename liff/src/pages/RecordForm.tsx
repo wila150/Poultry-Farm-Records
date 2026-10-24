@@ -16,7 +16,7 @@ import {
   type User,
 } from '../../../shared/src';
 import type { Route } from '../App';
-import { loadRecord, type WithId } from '../data';
+import { loadDraft, loadRecord, type WithId } from '../data';
 import { api, ApiError, closeLiff, db } from '../session';
 
 type Field = (typeof DAILY_RECORD_FIELDS)[number];
@@ -85,24 +85,35 @@ function toRaw(values: Values) {
   return raw;
 }
 
-// 草稿存在手機瀏覽器，農場訊號差也不會遺失。讀寫失敗時當作沒有草稿。
+// 草稿：先存在手機（訊號差也不會遺失），停頓後同步到雲端，換手機、換瀏覽器或換人都能接著填。
+interface LocalDraft {
+  values: Values;
+  savedAt: number;
+  synced: boolean;
+}
 const draftKey = (houseId: string, date: string) => `draft:${houseId}:${date}`;
-function readDraft(key: string): Values | null {
+function readLocal(key: string): LocalDraft | null {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? { ...EMPTY, ...JSON.parse(raw) } : null;
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    // 舊版只存表單值
+    return 'values' in d ? d : { values: d, savedAt: 0, synced: false };
   } catch {
     return null;
   }
 }
-function writeDraft(key: string, v: Values | null) {
+function writeLocal(key: string, d: LocalDraft | null) {
   try {
-    if (v) localStorage.setItem(key, JSON.stringify(v));
+    if (d) localStorage.setItem(key, JSON.stringify(d));
     else localStorage.removeItem(key);
   } catch {
     /* 無法儲存草稿時不影響填寫 */
   }
 }
+
+const SYNC_DELAY = 1500;
+const hhmm = (ms: number) => new Date(ms).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
 
 interface Props {
   me: WithId<User>;
@@ -118,7 +129,13 @@ export function RecordForm({ me, house, date, go }: Props) {
   const [values, setValues] = useState<Values | null>(null);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [exists, setExists] = useState(false);
-  const [fromDraft, setFromDraft] = useState(false);
+  const [resumed, setResumed] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [sync, setSync] = useState<{ state: 'saving' | 'saved' | 'offline'; at?: number } | null>(null);
+  const [retry, setRetry] = useState(0);
+  const saving = useRef<Promise<unknown> | null>(null);
+  const finished = useRef(false);
+  const latest = useRef<{ values: Values | null; dirty: boolean }>({ values: null, dirty: false });
   const [birdCountFrom, setBirdCountFrom] = useState<string | null>(null);
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [submitted, setSubmitted] = useState(false);
@@ -131,7 +148,11 @@ export function RecordForm({ me, house, date, go }: Props) {
 
   useEffect(() => {
     (async () => {
-      const [rec, farm] = await Promise.all([loadRecord(house.id, date), getDoc(doc(db, 'farms', house.farmId))]);
+      const [rec, farm, cloud] = await Promise.all([
+        loadRecord(house.id, date),
+        getDoc(doc(db, 'farms', house.farmId)),
+        readOnly ? null : loadDraft(house.id, date),
+      ]);
       setCustomFields(((farm.data() as Farm | undefined)?.customFields ?? []).filter((f) => f.active));
       setExists(!!rec);
       let base: Values;
@@ -146,11 +167,61 @@ export function RecordForm({ me, house, date, go }: Props) {
         setBirdCountFrom(pre.birdCountFrom);
       }
       original.current = base;
-      const draft = readOnly ? null : readDraft(key);
-      setFromDraft(!!draft);
-      setValues(draft ?? base);
+
+      // 取最新的草稿（手機或雲端），而且要比已送出的紀錄新
+      const recAt = (rec as { updatedAt?: { toMillis(): number } } | null)?.updatedAt?.toMillis() ?? 0;
+      const local = readOnly ? null : readLocal(key);
+      const useLocal = local && local.savedAt > (cloud?.updatedAt ?? 0) && local.savedAt > recAt;
+      const useCloud = !useLocal && cloud && cloud.updatedAt > recAt;
+      if (useLocal) {
+        setValues({ ...base, ...local.values });
+        setResumed(`已還原這支手機 ${hhmm(local.savedAt)} 的草稿`);
+        if (!local.synced) setDirty(true);
+      } else if (useCloud) {
+        setValues({ ...base, ...cloud.values });
+        setResumed(`已接續 ${cloud.updatedByName || '上次'} ${hhmm(cloud.updatedAt)} 的草稿`);
+        setSync({ state: 'saved', at: cloud.updatedAt });
+      } else {
+        setValues(base);
+      }
     })().catch((e: Error) => setError(e.message));
   }, [house.id, date, key, readOnly]);
+
+  async function pushDraft(v: Values) {
+    setSync({ state: 'saving' });
+    const p = api('PUT', `/drafts/${house.id}/${date}`, { values: v });
+    saving.current = p;
+    try {
+      await p;
+      if (finished.current) return;
+      writeLocal(key, { values: v, savedAt: Date.now(), synced: true });
+      setSync({ state: 'saved', at: Date.now() });
+      setDirty(false);
+    } catch {
+      if (!finished.current) setSync({ state: 'offline' });
+    } finally {
+      if (saving.current === p) saving.current = null;
+    }
+  }
+
+  // 停頓 1.5 秒後同步到雲端；離線時等恢復連線再試
+  useEffect(() => {
+    latest.current = { values, dirty };
+    if (!dirty || !values || finished.current) return;
+    const t = setTimeout(() => pushDraft(values), SYNC_DELAY);
+    return () => clearTimeout(t);
+  }, [values, dirty, retry]);
+
+  useEffect(() => {
+    const onOnline = () => setRetry((n) => n + 1);
+    window.addEventListener('online', onOnline);
+    // 離開頁面時把還沒同步的內容送出去
+    return () => {
+      window.removeEventListener('online', onOnline);
+      const { values: v, dirty: d } = latest.current;
+      if (d && v && !finished.current) api('PUT', `/drafts/${house.id}/${date}`, { values: v }).catch(() => {});
+    };
+  }, [house.id, date]);
 
   const input = useMemo(() => (values ? normalizeDailyRecordInput(toRaw(values), customFields) : null), [values, customFields]);
   const result = useMemo(
@@ -162,16 +233,21 @@ export function RecordForm({ me, house, date, go }: Props) {
   function set(field: string, v: string) {
     setValues((prev) => {
       const next = { ...prev!, [field]: v };
-      writeDraft(key, next);
+      writeLocal(key, { values: next, savedAt: Date.now(), synced: false });
       return next;
     });
+    setDirty(true);
     setConfirmWarnings(false);
     setServerErrors((e) => ({ ...e, [field]: '' }));
   }
 
   function discardDraft() {
-    writeDraft(key, null);
-    setFromDraft(false);
+    if (!confirm('確定捨棄草稿？手機和雲端的草稿都會刪除。')) return;
+    writeLocal(key, null);
+    api('DELETE', `/drafts/${house.id}/${date}`).catch(() => {});
+    setResumed(null);
+    setDirty(false);
+    setSync(null);
     setValues(original.current);
   }
 
@@ -186,10 +262,14 @@ export function RecordForm({ me, house, date, go }: Props) {
     setBusy(true);
     setError(null);
     try {
+      // 等正在同步的草稿完成，避免送出後草稿又被寫回去
+      await saving.current?.catch(() => {});
+      finished.current = true;
       await api('PUT', `/records/${house.id}/${date}`, input);
-      writeDraft(key, null);
+      writeLocal(key, null);
       setDone(true);
     } catch (err) {
+      finished.current = false;
       if (err instanceof ApiError && err.details) setServerErrors(err.details);
       setError((err as Error).message);
     } finally {
@@ -244,12 +324,19 @@ export function RecordForm({ me, house, date, go }: Props) {
     <main>
       {header}
       {readOnly && <p className="notice">只能修改今天和昨天的紀錄，如需更正請聯絡場長。</p>}
-      {fromDraft && (
+      {resumed && (
         <p className="notice">
-          已還原上次未送出的草稿。
+          {resumed}，可以接著填。
           <button type="button" className="link" onClick={discardDraft}>
             捨棄草稿
           </button>
+        </p>
+      )}
+      {!readOnly && sync && (
+        <p className={`sync ${sync.state}`}>
+          {sync.state === 'saving' && '同步中…'}
+          {sync.state === 'saved' && `草稿已同步 ${hhmm(sync.at!)}，換手機也能接著填`}
+          {sync.state === 'offline' && '目前離線，草稿已先存在這支手機，恢復連線後會自動同步'}
         </p>
       )}
       {result.errors.date && <p className="error">{result.errors.date}</p>}

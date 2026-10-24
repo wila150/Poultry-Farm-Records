@@ -39,3 +39,19 @@ export async function loadHistory(house: WithId<House>, n = 30): Promise<DailyRe
   );
   return snap.docs.map((d) => d.data() as DailyRecord);
 }
+
+export interface CloudDraft {
+  values: Record<string, string>;
+  updatedAt: number;
+  updatedByName: string;
+}
+
+export async function loadDraft(houseId: string, date: string): Promise<CloudDraft | null> {
+  const snap = await getDoc(doc(db, 'drafts', recordId(houseId, date)));
+  if (!snap.exists()) return null;
+  return {
+    values: snap.get('values') ?? {},
+    updatedAt: snap.get('updatedAt')?.toMillis?.() ?? 0,
+    updatedByName: snap.get('updatedByName') ?? '',
+  };
+}
