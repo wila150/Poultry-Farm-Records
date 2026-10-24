@@ -10,3 +10,7 @@ export const firebaseConfig = {
 };
 
 export const LIFF_ID = '2012188460-sKNHrih8';
+
+// 後台用的 LIFF App（同一個 LINE Login Channel，Endpoint URL 為後台網址）。
+// 在外部瀏覽器開啟時會走 LINE Login，登入身分與手機版相同。
+export const ADMIN_LIFF_ID = '';

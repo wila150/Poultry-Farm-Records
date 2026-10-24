@@ -4,6 +4,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { authenticate } from './lib/auth';
 import { LINE_CHANNEL_ACCESS_TOKEN } from './lib/config';
 import { errorHandler } from './lib/http';
+import { adminRouter } from './routes/admin';
 import { authRouter } from './routes/auth';
 import { recordsRouter } from './routes/records';
 import { usersRouter } from './routes/users';
@@ -22,6 +23,7 @@ router.get('/ping', (_req, res) => {
 router.use('/auth', authRouter);
 router.use(authenticate);
 router.use(usersRouter);
+router.use(adminRouter);
 router.use(recordsRouter);
 
 app.use('/api', router);
