@@ -63,6 +63,14 @@ service cloud.firestore {
       allow read: if inFarm(resource.data.farmId);
     }
 
+    match /customers/{id} {
+      allow read: if inFarm(resource.data.farmId);
+    }
+
+    match /shipments/{id} {
+      allow read: if inFarm(resource.data.farmId);
+    }
+
     match /alertRules/{code} {
       allow read: if isActive() && me().role in ['owner', 'manager'];
     }

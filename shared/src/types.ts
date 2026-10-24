@@ -1,5 +1,7 @@
 // 前端、後端共用的資料型別。時間戳記欄位在各端以各自的 Timestamp 型別表示，這裡不列出。
 
+import type { ShipmentSettings } from './shipment';
+
 export type Role = 'owner' | 'manager' | 'staff';
 export type UserStatus = 'pending' | 'active' | 'disabled';
 
@@ -7,6 +9,8 @@ export interface Farm {
   name: string;
   location: string;
   weatherStationId: string | null;
+  /** 未設定的項目使用 DEFAULT_SHIPMENT_SETTINGS */
+  shipmentSettings?: Partial<ShipmentSettings>;
 }
 
 export interface House {

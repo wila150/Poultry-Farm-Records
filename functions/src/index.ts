@@ -7,6 +7,7 @@ import { errorHandler } from './lib/http';
 import { adminRouter } from './routes/admin';
 import { authRouter } from './routes/auth';
 import { recordsRouter } from './routes/records';
+import { shipmentsRouter } from './routes/shipments';
 import { usersRouter } from './routes/users';
 
 setGlobalOptions({ region: 'asia-east1', maxInstances: 10, memory: '256MiB' });
@@ -25,6 +26,7 @@ router.use(authenticate);
 router.use(usersRouter);
 router.use(adminRouter);
 router.use(recordsRouter);
+router.use(shipmentsRouter);
 
 app.use('/api', router);
 app.use(errorHandler);
