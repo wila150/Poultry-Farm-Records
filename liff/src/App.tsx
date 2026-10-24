@@ -39,7 +39,10 @@ export function App() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  useEffect(() => window.scrollTo(0, 0), [route]);
+  // 新版瀏覽器的 scrollTo 會回傳 Promise，不能直接當成 effect 的回傳值
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [route]);
 
   if (error) return <Message title="無法開啟" body={error} />;
   if (!status) return <Message title="載入中…" />;
