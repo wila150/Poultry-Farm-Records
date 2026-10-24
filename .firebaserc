@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "poultry-farm-records"
+  },
+  "targets": {
+    "poultry-farm-records": {
+      "hosting": {
+        "liff": ["poultry-farm-liff"],
+        "admin": ["poultry-farm-admin"]
+      }
+    }
+  }
+}

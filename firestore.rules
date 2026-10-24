@@ -1,0 +1,75 @@
+rules_version = '2';
+
+// 所有寫入都經由 Cloud Functions（Admin SDK 不受規則限制），前端一律唯讀。
+// request.auth.uid 等於 LINE userId，對應 users/{uid}。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isActive() {
+      return request.auth != null && me().status == 'active';
+    }
+    function isOwner() {
+      return isActive() && me().role == 'owner';
+    }
+    function managesFarm(farmId) {
+      return isOwner() || (isActive() && me().role == 'manager' && farmId in me().farmIds);
+    }
+    function inFarm(farmId) {
+      return isOwner() || (isActive() && farmId in me().farmIds);
+    }
+    function canSeeHouse(farmId, houseId) {
+      return managesFarm(farmId) || (isActive() && me().role == 'staff' && houseId in me().houseIds);
+    }
+
+    match /farms/{farmId} {
+      allow read: if inFarm(farmId);
+    }
+
+    match /houses/{houseId} {
+      allow read: if inFarm(resource.data.farmId);
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow read: if isOwner()
+        || (isActive() && me().role == 'manager'
+            && resource.data.farmIds.hasAny(me().farmIds));
+    }
+
+    match /assignments/{id} {
+      allow read: if managesFarm(resource.data.farmId)
+        || (request.auth != null && resource.data.userId == request.auth.uid);
+    }
+
+    match /dailyRecords/{recordId} {
+      allow read: if canSeeHouse(resource.data.farmId, resource.data.houseId);
+
+      match /logs/{logId} {
+        allow read: if managesFarm(get(/databases/$(database)/documents/dailyRecords/$(recordId)).data.farmId);
+      }
+    }
+
+    match /medicationEvents/{id} {
+      allow read: if canSeeHouse(resource.data.farmId, resource.data.houseId);
+    }
+
+    match /weather/{id} {
+      allow read: if inFarm(resource.data.farmId);
+    }
+
+    match /alertRules/{code} {
+      allow read: if isActive() && me().role in ['owner', 'manager'];
+    }
+
+    match /alerts/{id} {
+      allow read: if managesFarm(resource.data.farmId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
