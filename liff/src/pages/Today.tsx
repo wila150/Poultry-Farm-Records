@@ -78,9 +78,16 @@ export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) 
         })}
       </ul>
 
-      <button className="secondary" onClick={() => go({ page: 'shipment' })}>
-        開出貨單
-      </button>
+      <div className="stack">
+        <button className="secondary" onClick={() => go({ page: 'shipment' })}>
+          開出貨單
+        </button>
+        {me.role !== 'staff' && (
+          <button className="secondary" onClick={() => location.assign('/admin/')}>
+            後台管理（進度・人員・出貨單）
+          </button>
+        )}
+      </div>
     </main>
   );
 }

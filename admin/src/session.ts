@@ -2,7 +2,7 @@ import liff from '@line/liff';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { ADMIN_LIFF_ID as LIFF_ID, firebaseConfig } from '../../shared/src/firebaseConfig';
+import { firebaseConfig, LIFF_ID } from '../../shared/src/firebaseConfig';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -12,10 +12,9 @@ export type BootStatus = 'new' | 'pending' | 'active' | 'disabled';
 
 /**
  * LIFF 登入 → 後端驗證 ID Token → Firebase 登入。
- * 後台在一般瀏覽器開啟，liff.login() 會導向 LINE Login，登入身分與手機版相同。
+ * 後台在 /admin/，和手機版共用同一個 LIFF ID；在一般瀏覽器開啟時 liff.login() 會導向 LINE Login。
  */
 export async function boot(): Promise<BootStatus | 'redirecting'> {
-  if (!LIFF_ID) throw new Error('尚未設定後台 LIFF ID（shared/src/firebaseConfig.ts）');
   await liff.init({ liffId: LIFF_ID });
   if (!liff.isLoggedIn()) {
     liff.login({ redirectUri: location.href });

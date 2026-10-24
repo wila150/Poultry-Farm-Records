@@ -9,8 +9,15 @@ LINE 官方帳號 + LIFF 每日生產紀錄、未填提醒、異常警報、數�
 | `shared/` | 前後端共用：型別、防呆規則、衍生數字計算、日期（台灣時間） |
 | `functions/` | Cloud Functions：API、LINE Webhook、排程 |
 | `liff/` | LIFF 手機版：申請加入、今日總覽、填寫表單（防呆、草稿）、歷史紀錄 |
-| `admin/` | 後台 Web App：初始設定、填寫進度、人員核准與指派、雞場與雞舍 |
+| `admin/` | 後台（網址 `/admin/`，與手機版共用 LIFF）：初始設定、填寫進度、出貨單、人員、雞場與雞舍 |
 | `firestore.rules` | 前端唯讀權限；所有寫入經由 Functions |
+
+## 網址
+
+- 手機版（LINE 內開啟）：https://liff.line.me/2012188460-sKNHrih8
+- 後台：https://poultry-farm-records-5f4e6.web.app/admin （場長、老闆；手機版首頁也有入口）
+
+部署 `firebase deploy` 時會自動打包 `liff/` 和 `admin/`，後台輸出到 `liff/dist/admin/`。
 
 ## Cloud Functions
 

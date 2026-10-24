@@ -17,7 +17,7 @@ const PAGES = {
 type PageKey = keyof typeof PAGES;
 
 const initialPage = (): PageKey => {
-  const p = location.pathname.slice(1);
+  const p = location.pathname.replace(/^\/admin\/?/, '');
   return p in PAGES ? (p as PageKey) : 'progress';
 };
 
@@ -41,7 +41,7 @@ export function App() {
   }, []);
 
   function navigate(p: PageKey) {
-    history.pushState(null, '', `/${p}`);
+    history.pushState(null, '', `/admin/${p}`);
     setPage(p);
   }
   useEffect(() => {
@@ -71,6 +71,7 @@ export function App() {
             {PAGES[k].label}
           </button>
         ))}
+        <button onClick={() => location.assign('/')}>‹ 填寫紀錄</button>
         <div className="me">
           <span>
             {me.name}・{me.role === 'owner' ? '老闆' : '場長'}

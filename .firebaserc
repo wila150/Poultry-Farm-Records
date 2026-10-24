@@ -1,13 +1,5 @@
 {
   "projects": {
     "default": "poultry-farm-records-5f4e6"
-  },
-  "targets": {
-    "poultry-farm-records-5f4e6": {
-      "hosting": {
-        "liff": ["poultry-farm-records-5f4e6"],
-        "admin": ["poultry-farm-records-5f4e6-admin"]
-      }
-    }
   }
 }
