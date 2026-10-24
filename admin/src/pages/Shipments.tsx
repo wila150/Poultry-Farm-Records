@@ -27,7 +27,6 @@ type View =
 const KIND_LABEL = { box: '原料箱', cart: '蛋盤車' } as const;
 const QTY_UNIT = { box: '箱', cart: '車' } as const;
 const fmt = (n: number) => n.toLocaleString('zh-TW');
-const money = (n: number) => `$${fmt(n)}`;
 
 export function Shipments({ me }: { me: WithId<User> }) {
   const [farms, setFarms] = useState<WithId<Farm>[] | null>(null);
@@ -122,7 +121,7 @@ function ShipmentList({ farm, setView }: { farm: WithId<Farm>; setView: (v: View
   }
 
   const valid = list?.filter((s) => !s.voided) ?? [];
-  const sum = (k: 'totalEggs' | 'totalCatty' | 'totalAmount') => valid.reduce((t, s) => t + s[k], 0);
+  const sum = (k: 'totalEggs' | 'totalCatty') => valid.reduce((t, s) => t + s[k], 0);
 
   return (
     <section className="card">
@@ -148,7 +147,6 @@ function ShipmentList({ farm, setView }: { farm: WithId<Farm>; setView: (v: View
                 <th>品項</th>
                 <th>顆數</th>
                 <th>淨重（台斤）</th>
-                <th>金額</th>
                 <th></th>
               </tr>
             </thead>
@@ -166,7 +164,6 @@ function ShipmentList({ farm, setView }: { farm: WithId<Farm>; setView: (v: View
                   </td>
                   <td>{fmt(s.totalEggs)}</td>
                   <td>{fmt(s.totalCatty)}</td>
-                  <td>{money(s.totalAmount)}</td>
                   <td className="actions">
                     <button className="link" onClick={() => setView({ name: 'print', shipment: s })}>
                       列印
@@ -190,7 +187,6 @@ function ShipmentList({ farm, setView }: { farm: WithId<Farm>; setView: (v: View
                 <td colSpan={4}>合計（{valid.length} 張，不含作廢）</td>
                 <td>{fmt(sum('totalEggs'))}</td>
                 <td>{fmt(Math.round(sum('totalCatty') * 10) / 10)}</td>
-                <td>{money(sum('totalAmount'))}</td>
                 <td></td>
               </tr>
             </tfoot>
@@ -201,14 +197,13 @@ function ShipmentList({ farm, setView }: { farm: WithId<Farm>; setView: (v: View
   );
 }
 
-type ItemDraft = Record<'quantity' | 'weightCatty' | 'pricePerCatty', string> & Pick<ShipmentItemInput, 'kind' | 'grade'>;
+type ItemDraft = Record<'quantity' | 'weightCatty', string> & Pick<ShipmentItemInput, 'kind' | 'grade'>;
 
 const newItem = (s: ShipmentSettings, prev?: ItemDraft): ItemDraft => ({
   kind: prev?.kind ?? 'box',
   grade: prev?.grade ?? s.grades[0] ?? '',
   quantity: '',
   weightCatty: '',
-  pricePerCatty: prev?.pricePerCatty ?? '',
 });
 
 interface FormProps {
@@ -231,7 +226,6 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
       grade: i.grade,
       quantity: String(i.quantity),
       weightCatty: String(i.weightCatty),
-      pricePerCatty: String(i.pricePerCatty),
     })) ?? [newItem(settings)],
   );
   const [note, setNote] = useState(shipment?.note ?? '');
@@ -267,7 +261,6 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
         grade: i.grade,
         quantity: Number(i.quantity),
         weightCatty: Number(i.weightCatty),
-        pricePerCatty: Number(i.pricePerCatty),
       })),
     }),
     [date, customerId, eggWeight, note, items],
@@ -333,10 +326,8 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
               <th>規格</th>
               <th>數量</th>
               <th>重量（台斤）</th>
-              <th>單價／台斤</th>
               <th>淨重</th>
               <th>顆數</th>
-              <th>金額</th>
               <th></th>
             </tr>
           </thead>
@@ -377,12 +368,8 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
                       <span className="muted">每箱 {settings.boxCatty} 台斤</span>
                     )}
                   </td>
-                  <td>
-                    <input inputMode="decimal" value={it.pricePerCatty} onChange={(e) => setItem(idx, { pricePerCatty: e.target.value })} />
-                  </td>
                   <td>{c && c.netCatty > 0 ? fmt(c.netCatty) : '–'}</td>
                   <td>{c && c.eggs > 0 ? fmt(c.eggs) : '–'}</td>
-                  <td>{c && c.amount > 0 ? money(c.amount) : '–'}</td>
                   <td>
                     {items.length > 1 && (
                       <button type="button" className="link danger" onClick={() => setItems(items.filter((_, i) => i !== idx))}>
@@ -393,7 +380,7 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
                 </tr>
                 {(err || warn) && (
                   <tr className="row-msg">
-                    <td colSpan={9}>{err ? <span className="error">{err}</span> : <span className="warn">{warn}</span>}</td>
+                    <td colSpan={7}>{err ? <span className="error">{err}</span> : <span className="warn">{warn}</span>}</td>
                   </tr>
                 )}
                 </Fragment>
@@ -402,15 +389,14 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={5}>
+              <td colSpan={4}>
                 <button type="button" className="link" onClick={() => setItems([...items, newItem(settings, items.at(-1))])}>
                   ＋ 新增品項
                 </button>
               </td>
               <td>{fmt(calc.totalCatty)}</td>
-              <td>{fmt(calc.totalEggs)}</td>
               <td>
-                <strong>{money(calc.totalAmount)}</strong>
+                <strong>{fmt(calc.totalEggs)}</strong>
               </td>
               <td></td>
             </tr>
@@ -475,8 +461,6 @@ function PrintView({ farm, shipment: s, back }: { farm: WithId<Farm>; shipment: 
               <th>重量（台斤）</th>
               <th>淨重（台斤）</th>
               <th>顆數</th>
-              <th>單價</th>
-              <th>金額</th>
             </tr>
           </thead>
           <tbody>
@@ -490,8 +474,6 @@ function PrintView({ farm, shipment: s, back }: { farm: WithId<Farm>; shipment: 
                 <td>{fmt(i.weightCatty)}</td>
                 <td>{fmt(i.netCatty)}</td>
                 <td>{fmt(i.eggs)}</td>
-                <td>{fmt(i.pricePerCatty)}</td>
-                <td>{money(i.amount)}</td>
               </tr>
             ))}
           </tbody>
@@ -500,8 +482,6 @@ function PrintView({ farm, shipment: s, back }: { farm: WithId<Farm>; shipment: 
               <td colSpan={4}>合計</td>
               <td>{fmt(s.totalCatty)}</td>
               <td>{fmt(s.totalEggs)}</td>
-              <td></td>
-              <td>{money(s.totalAmount)}</td>
             </tr>
           </tfoot>
         </table>

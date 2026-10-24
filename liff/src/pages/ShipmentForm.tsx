@@ -24,7 +24,6 @@ interface ItemDraft {
   grade: string;
   quantity: string;
   weightCatty: string;
-  pricePerCatty: string;
 }
 
 export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => void }) {
@@ -61,7 +60,7 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
       );
       setEggWeight(w.avgEggWeight === null ? '' : String(w.avgEggWeight));
       setEggWeightFrom(w.from);
-      setItems([{ kind: 'box', grade: s.grades[0] ?? '', quantity: '', weightCatty: '', pricePerCatty: '' }]);
+      setItems([{ kind: 'box', grade: s.grades[0] ?? '', quantity: '', weightCatty: '' }]);
     })().catch((e: Error) => setError(e.message));
   }, [farmId, today]);
 
@@ -77,7 +76,6 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
         grade: i.grade,
         quantity: Number(i.quantity),
         weightCatty: Number(i.weightCatty),
-        pricePerCatty: Number(i.pricePerCatty),
       })),
     }),
     [today, customerId, eggWeight, note, items],
@@ -108,10 +106,10 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
     try {
       await api('POST', '/shipments', { ...input, farmId });
       const customer = customers.find((c) => c.id === customerId)?.name ?? '';
-      const lines = calc.items.map((i) => `${i.grade} ${i.quantity}${QTY_UNIT[i.kind]}｜${fmt(i.netCatty)} 台斤｜$${fmt(i.amount)}`);
+      const lines = calc.items.map((i) => `${i.grade} ${i.quantity}${QTY_UNIT[i.kind]}｜${fmt(i.netCatty)} 台斤｜約 ${fmt(i.eggs)} 顆`);
       setSaved({
         customer,
-        summary: [`【${farm!.name} 出貨單】${today}`, `客戶：${customer}`, ...lines, `合計：${fmt(calc.totalCatty)} 台斤，約 ${fmt(calc.totalEggs)} 顆，$${fmt(calc.totalAmount)}`].join('\n'),
+        summary: [`【${farm!.name} 出貨單】${today}`, `客戶：${customer}`, ...lines, `合計：${fmt(calc.totalCatty)} 台斤，約 ${fmt(calc.totalEggs)} 顆`].join('\n'),
       });
     } catch (err) {
       setError((err as Error).message);
@@ -231,17 +229,10 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
                     <p className="fixed-value">每箱 {settings.boxCatty} 台斤</p>
                   </div>
                 )}
-                <label className="field">
-                  <span>單價／台斤</span>
-                  <div className="input-unit">
-                    <input inputMode="decimal" value={it.pricePerCatty} onChange={(e) => setItem(idx, { pricePerCatty: e.target.value })} />
-                    <em>元</em>
-                  </div>
-                </label>
               </div>
               {c && c.netCatty > 0 && (
                 <p className="metric">
-                  淨重 <strong>{fmt(c.netCatty)}</strong> 台斤・約 <strong>{fmt(c.eggs)}</strong> 顆・<strong>${fmt(c.amount)}</strong>
+                  淨重 <strong>{fmt(c.netCatty)}</strong> 台斤・約 <strong>{fmt(c.eggs)}</strong> 顆
                 </p>
               )}
               {err && <p className="error">{err}</p>}
@@ -264,7 +255,7 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
         </section>
 
         <p className="metric total">
-          合計 <strong>{fmt(calc.totalCatty)}</strong> 台斤・約 {fmt(calc.totalEggs)} 顆・<strong>${fmt(calc.totalAmount)}</strong>
+          合計 <strong>{fmt(calc.totalCatty)}</strong> 台斤・約 <strong>{fmt(calc.totalEggs)}</strong> 顆
         </p>
         {submitted && v.errors.map((m) => <p key={m} className="error">{m}</p>)}
         {error && <p className="error">{error}</p>}

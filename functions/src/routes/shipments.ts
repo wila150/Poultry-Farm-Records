@@ -74,7 +74,6 @@ function parseInput(body: Record<string, unknown>): ShipmentInput {
       grade: String(i.grade ?? ''),
       quantity: Number(i.quantity),
       weightCatty: Number(i.weightCatty),
-      pricePerCatty: Number(i.pricePerCatty),
     })),
   };
 }

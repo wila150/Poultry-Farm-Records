@@ -73,11 +73,11 @@ export function Export({ me }: { me: WithId<User> }) {
       if (list.length === 0) return 0;
       downloadCsv(
         `出貨單_${farm?.name}_${from}_${to}.csv`,
-        ['單號', '日期', '客戶', '狀態', '類型', '規格', '數量', '單位', '重量(台斤)', '淨重(台斤)', '顆數', '單價(元/台斤)', '金額', '平均蛋重(g)', '備註'],
+        ['單號', '日期', '客戶', '狀態', '類型', '規格', '數量', '單位', '重量(台斤)', '淨重(台斤)', '顆數', '平均蛋重(g)', '備註'],
         list.flatMap((s) =>
           s.items.map((i) => [
             s.no, s.date, s.customerName, s.voided ? '作廢' : '有效', KIND_LABEL[i.kind], i.grade, i.quantity, QTY_UNIT[i.kind],
-            i.weightCatty, i.netCatty, i.eggs, i.pricePerCatty, i.amount, s.avgEggWeight, s.note,
+            i.weightCatty, i.netCatty, i.eggs, s.avgEggWeight, s.note,
           ]),
         ),
       );

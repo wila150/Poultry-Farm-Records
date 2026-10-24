@@ -1,5 +1,5 @@
 // 出貨單計算。前端即時顯示、後端存檔時再算一次，以後端結果為準。
-// 秤的單位是台斤；計價一律以淨重台斤 × 單價。
+// 重量單位是台斤；出貨單只記數量、重量、顆數，不記金額。
 
 export const CATTY_G = 600; // 1 台斤 = 600 g
 
@@ -36,13 +36,11 @@ export interface ShipmentItemInput {
   quantity: number;
   /** 蛋盤：上車秤的總重（台斤）。原料箱固定每箱 boxCatty 台斤，由系統計算 */
   weightCatty: number;
-  pricePerCatty: number;
 }
 
 export interface ShipmentItem extends ShipmentItemInput {
   netCatty: number;
   eggs: number;
-  amount: number;
 }
 
 export interface ShipmentInput {
@@ -61,7 +59,6 @@ export interface Shipment extends Omit<ShipmentInput, 'items'> {
   items: ShipmentItem[];
   totalEggs: number;
   totalCatty: number;
-  totalAmount: number;
   voided: boolean;
   createdBy: string;
   updatedBy: string;
@@ -89,8 +86,7 @@ export function calcItem(input: ShipmentItemInput, avgEggWeight: number, s: Ship
       : avgEggWeight > 0
         ? Math.round((netCatty * CATTY_G) / avgEggWeight)
         : 0;
-  const amount = Math.round(netCatty * item.pricePerCatty);
-  return { ...item, netCatty, eggs, amount };
+  return { ...item, netCatty, eggs };
 }
 
 export function calcShipment(input: Pick<ShipmentInput, 'items' | 'avgEggWeight'>, s: ShipmentSettings) {
@@ -99,7 +95,6 @@ export function calcShipment(input: Pick<ShipmentInput, 'items' | 'avgEggWeight'
     items,
     totalEggs: items.reduce((t, i) => t + i.eggs, 0),
     totalCatty: round1(items.reduce((t, i) => t + i.netCatty, 0)),
-    totalAmount: items.reduce((t, i) => t + i.amount, 0),
   };
 }
 
@@ -120,12 +115,12 @@ export function validateShipment(input: ShipmentInput, s: ShipmentSettings): Shi
   if (input.items.length === 0) errors.push('請至少新增一個品項');
 
   input.items.forEach((item, i) => {
-    const nums = item.kind === 'cart' ? [item.quantity, item.weightCatty, item.pricePerCatty] : [item.quantity, item.pricePerCatty];
+    const nums = item.kind === 'cart' ? [item.quantity, item.weightCatty] : [item.quantity];
     if (!['box', 'cart'].includes(item.kind)) itemErrors[i] = '品項類型錯誤';
     else if (!item.grade) itemErrors[i] = '請選擇規格';
     else if (!Number.isInteger(item.quantity) || item.quantity <= 0) itemErrors[i] = item.kind === 'box' ? '箱數請填正整數' : '車數請填正整數';
     else if (nums.some((n) => typeof n !== 'number' || !Number.isFinite(n) || n < 0)) {
-      itemErrors[i] = item.kind === 'cart' ? '總重和單價請填數字' : '單價請填數字';
+      itemErrors[i] = '請填上車總重';
     }
     if (itemErrors[i]) return;
 
