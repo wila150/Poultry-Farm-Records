@@ -4,13 +4,15 @@ import { loadMe, type WithId } from './data';
 import { Apply } from './pages/Apply';
 import { History } from './pages/History';
 import { RecordForm } from './pages/RecordForm';
+import { ShipmentForm } from './pages/ShipmentForm';
 import { Today } from './pages/Today';
 import { boot, type BootStatus } from './session';
 
 export type Route =
   | { page: 'today' }
   | { page: 'form'; house: WithId<House>; date: string }
-  | { page: 'history'; house: WithId<House> };
+  | { page: 'history'; house: WithId<House> }
+  | { page: 'shipment' };
 
 export function App() {
   const [status, setStatus] = useState<BootStatus | null>(null);
@@ -45,6 +47,8 @@ export function App() {
       return <RecordForm me={me} house={route.house} date={route.date} go={go} />;
     case 'history':
       return <History me={me} house={route.house} go={go} />;
+    case 'shipment':
+      return <ShipmentForm me={me} go={go} />;
   }
 }
 

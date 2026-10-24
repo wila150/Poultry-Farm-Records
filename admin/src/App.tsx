@@ -4,11 +4,13 @@ import { loadMe, type WithId } from './data';
 import { Houses } from './pages/Houses';
 import { Progress } from './pages/Progress';
 import { Setup } from './pages/Setup';
+import { Shipments } from './pages/Shipments';
 import { Users } from './pages/Users';
 import { api, boot, logout, type BootStatus } from './session';
 
 const PAGES = {
   progress: { label: '今日進度', Component: Progress },
+  shipments: { label: '出貨單', Component: Shipments },
   users: { label: '人員管理', Component: Users },
   houses: { label: '雞場與雞舍', Component: Houses },
 } as const;

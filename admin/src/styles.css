@@ -207,3 +207,51 @@ button.small { width: auto; min-height: 36px; padding: 0 16px; font-size: 14px; 
   .me { margin: 0 0 0 auto; flex-direction: row; gap: 8px; align-items: center; }
   .content { padding: 16px; }
 }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img { border-radius: 7px; }
+
+/* ---- 出貨單 ---- */
+.row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row-actions select { width: auto; font-size: 14px; padding: 6px 10px; }
+button.tab {
+  background: none; border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 14px; font-size: 14px; color: var(--text);
+}
+button.tab.on { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+.filters { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.filters input { width: auto; font-size: 14px; padding: 6px 10px; }
+tfoot td { font-weight: 600; border-top: 2px solid var(--border); border-bottom: 0; }
+table.items td { vertical-align: top; }
+table.items input, table.items select { font-size: 15px; padding: 6px 30px 6px 8px; min-width: 80px; }
+table.items select { padding-right: 8px; }
+table.items small { display: block; font-size: 11px; white-space: normal; }
+tr.row-msg td { text-align: left; padding-top: 0; font-size: 13px; }
+td .badge { margin-left: 6px; }
+
+.invoice {
+  background: #fff; color: #111; max-width: 820px;
+  padding: 40px; border: 1px solid var(--border); border-radius: 8px; position: relative;
+}
+.invoice header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #111; padding-bottom: 16px; }
+.invoice header img { border-radius: 12px; }
+.invoice h1 { font-size: 24px; margin: 0; }
+.invoice header .muted { color: #555; margin: 4px 0 0; }
+.invoice dl { margin: 0 0 0 auto; display: grid; grid-template-columns: auto auto; gap: 2px 12px; font-size: 14px; }
+.invoice dt { color: #555; }
+.invoice dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.invoice .to { font-size: 17px; margin: 20px 0 12px; }
+.invoice th, .invoice td { border-bottom: 1px solid #ccc; color: #111; }
+.invoice tfoot td { border-top: 2px solid #111; }
+.invoice footer { display: flex; justify-content: space-between; margin-top: 56px; gap: 24px; }
+.invoice footer span { flex: 1; border-bottom: 1px solid #111; padding-bottom: 28px; }
+.void-stamp {
+  position: absolute; top: 120px; right: 60px; transform: rotate(-12deg);
+  border: 4px solid #c62828; color: #c62828; font-size: 40px; font-weight: 800;
+  padding: 4px 20px; border-radius: 8px; opacity: .8;
+}
+
+@media print {
+  .sidebar, .no-print { display: none !important; }
+  body, .content { background: #fff; padding: 0; }
+  .invoice { border: 0; padding: 0; max-width: none; }
+}

@@ -1,5 +1,5 @@
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
-import type { DailyRecord, Farm, House, User } from '../../shared/src';
+import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
+import type { Customer, DailyRecord, Farm, House, Shipment, User } from '../../shared/src';
 import { api, auth, db } from './session';
 
 export type WithId<T> = T & { id: string };
@@ -36,3 +36,23 @@ export async function loadRecordsOn(farmIds: string[], date: string): Promise<Da
 }
 
 export const loadUsers = () => api<WithId<User>[]>('GET', '/users');
+
+export async function loadCustomers(farmId: string): Promise<WithId<Customer>[]> {
+  const snap = await getDocs(query(collection(db, 'customers'), where('farmId', '==', farmId)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Customer) }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+}
+
+export async function loadShipments(farmId: string, from: string, to: string): Promise<WithId<Shipment>[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'shipments'),
+      where('farmId', '==', farmId),
+      where('date', '>=', from),
+      where('date', '<=', to),
+      orderBy('date', 'desc'),
+    ),
+  );
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Shipment) })).sort((a, b) => b.no.localeCompare(a.no));
+}

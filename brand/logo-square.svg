@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>瑞冠</title>
+  <rect width="512" height="512" fill="#2F7D4F"/>
+  <!-- 雞冠（冠）：三瓣，像一頂皇冠 -->
+  <g fill="#E0452F">
+    <circle cx="205" cy="150" r="34"/>
+    <circle cx="256" cy="118" r="42"/>
+    <circle cx="307" cy="150" r="34"/>
+    <rect x="186" y="140" width="140" height="60" rx="20"/>
+  </g>
+  <!-- 蛋 -->
+  <path d="M256 150C336 150 378 262 378 328C378 404 324 448 256 448C188 448 134 404 134 328C134 262 176 150 256 150Z" fill="#FFF4DD"/>
+  <ellipse cx="208" cy="262" rx="22" ry="42" transform="rotate(20 208 262)" fill="#FFFFFF" opacity=".75"/>
+  <!-- 瑞：一點祥光 -->
+  <path d="M398 120l9 25 25 9-25 9-9 25-9-25-25-9 25-9z" fill="#F4B740"/>
+</svg>

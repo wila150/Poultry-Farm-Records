@@ -1,5 +1,5 @@
+import './options';
 import express from 'express';
-import { setGlobalOptions } from 'firebase-functions/v2';
 import { onRequest } from 'firebase-functions/v2/https';
 import { authenticate } from './lib/auth';
 import { LINE_CHANNEL_ACCESS_TOKEN } from './lib/config';
@@ -9,8 +9,6 @@ import { authRouter } from './routes/auth';
 import { recordsRouter } from './routes/records';
 import { shipmentsRouter } from './routes/shipments';
 import { usersRouter } from './routes/users';
-
-setGlobalOptions({ region: 'asia-east1', maxInstances: 10, memory: '256MiB' });
 
 // 所有 API 放在同一個函式，只要有人在用就保持醒著，減少冷啟動。
 // Hosting 把 /api/** 轉到這裡，前後端同網域，不需要 CORS。

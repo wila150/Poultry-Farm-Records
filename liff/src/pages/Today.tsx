@@ -77,6 +77,10 @@ export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) 
           );
         })}
       </ul>
+
+      <button className="secondary" onClick={() => go({ page: 'shipment' })}>
+        開出貨單
+      </button>
     </main>
   );
 }
