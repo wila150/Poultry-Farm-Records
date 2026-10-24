@@ -10,11 +10,18 @@ export function lineClient() {
   return client;
 }
 
+/** 讓 LINE 用手機的外部瀏覽器開啟連結，而不是 LINE 內建瀏覽器 */
+export function externalUrl(uri: string) {
+  const u = new URL(uri);
+  u.searchParams.set('openExternalBrowser', '1');
+  return u.toString();
+}
+
 export function linkMessage(text: string, label: string, uri: string): messagingApi.Message {
   return {
     type: 'template',
     altText: text,
-    template: { type: 'buttons', text, actions: [{ type: 'uri', label, uri }] },
+    template: { type: 'buttons', text, actions: [{ type: 'uri', label, uri: externalUrl(uri) }] },
   };
 }
 

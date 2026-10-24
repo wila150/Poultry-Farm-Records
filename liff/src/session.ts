@@ -60,3 +60,10 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
 }
 
 export const closeLiff = () => (liff.isInClient() ? liff.closeWindow() : undefined);
+
+/** 後台用外部瀏覽器開啟（畫面較大、可下載匯出檔）；不在 LINE 裡時直接切換頁面 */
+export function openAdmin() {
+  const url = `${location.origin}/admin/`;
+  if (liff.isInClient()) liff.openWindow({ url, external: true });
+  else location.assign(url);
+}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { addDays, layingRate, taipeiDate, type DailyRecord, type House, type User } from '../../../shared/src';
 import type { Route } from '../App';
 import { loadMyHouses, loadRecord, type WithId } from '../data';
+import { openAdmin } from '../session';
 
 interface Row {
   house: WithId<House>;
@@ -83,7 +84,7 @@ export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) 
           開出貨單
         </button>
         {me.role !== 'staff' && (
-          <button className="secondary" onClick={() => location.assign('/admin/')}>
+          <button className="secondary" onClick={openAdmin}>
             後台管理（進度・人員・出貨單）
           </button>
         )}
