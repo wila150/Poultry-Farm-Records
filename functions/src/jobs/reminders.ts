@@ -17,7 +17,8 @@ async function missingHouses(date: string) {
 async function activeUserIds(ids: string[]) {
   if (ids.length === 0) return new Set<string>();
   const snaps = await db.getAll(...ids.map((id) => db.doc(`users/${id}`)));
-  return new Set(snaps.filter((s) => s.get('status') === 'active').map((s) => s.id));
+  // 工程師不收任何通知
+  return new Set(snaps.filter((s) => s.get('status') === 'active' && s.get('role') !== 'engineer').map((s) => s.id));
 }
 
 /** 17:00 只推給負責未填雞舍的員工；全部填完就不推 */
