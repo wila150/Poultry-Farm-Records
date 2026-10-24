@@ -37,6 +37,24 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "farmId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "houseId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "dailyRecords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "houseId",
           "order": "ASCENDING"
         },

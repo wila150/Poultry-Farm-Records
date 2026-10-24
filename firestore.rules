@@ -45,6 +45,9 @@ service cloud.firestore {
     }
 
     match /dailyRecords/{recordId} {
+      // 以 ID 讀取尚未填寫的紀錄時文件不存在，只會知道「還沒填」，不會洩漏資料。
+      // 列表查詢請同時帶 farmId 和 houseId 條件，規則才能驗證。
+      allow get: if resource == null && isActive();
       allow read: if canSeeHouse(resource.data.farmId, resource.data.houseId);
 
       match /logs/{logId} {
