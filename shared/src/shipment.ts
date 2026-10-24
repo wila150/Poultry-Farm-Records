@@ -9,6 +9,8 @@ export interface ShipmentSettings {
   eggsPerTray: number;
   /** 蛋盤車上秤時要扣除的車＋盤重量（公斤） */
   cartTareKg: number;
+  /** 原料箱每箱固定重量（台斤） */
+  boxCatty: number;
   /** 原料箱每箱合理顆數，超出範圍會提醒 */
   boxEggsMin: number;
   boxEggsMax: number;
@@ -19,6 +21,7 @@ export const DEFAULT_SHIPMENT_SETTINGS: ShipmentSettings = {
   traysPerCart: 144,
   eggsPerTray: 30,
   cartTareKg: 150,
+  boxCatty: 20,
   boxEggsMin: 180,
   boxEggsMax: 200,
 };
@@ -31,7 +34,7 @@ export interface ShipmentItemInput {
   grade: string;
   /** 原料箱：箱數；蛋盤：車數 */
   quantity: number;
-  /** 原料箱：蛋的淨重；蛋盤：上車秤的總重（台斤） */
+  /** 蛋盤：上車秤的總重（台斤）。原料箱固定每箱 boxCatty 台斤，由系統計算 */
   weightCatty: number;
   pricePerCatty: number;
 }
@@ -75,7 +78,9 @@ export interface Customer {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-export function calcItem(item: ShipmentItemInput, avgEggWeight: number, s: ShipmentSettings): ShipmentItem {
+export function calcItem(input: ShipmentItemInput, avgEggWeight: number, s: ShipmentSettings): ShipmentItem {
+  // 原料箱不秤重，重量 = 箱數 × 每箱固定台斤
+  const item = input.kind === 'box' ? { ...input, weightCatty: round1(input.quantity * s.boxCatty) } : input;
   const tareCatty = item.kind === 'cart' ? (item.quantity * s.cartTareKg * 1000) / CATTY_G : 0;
   const netCatty = round1(item.weightCatty - tareCatty);
   const eggs =
@@ -115,11 +120,13 @@ export function validateShipment(input: ShipmentInput, s: ShipmentSettings): Shi
   if (input.items.length === 0) errors.push('請至少新增一個品項');
 
   input.items.forEach((item, i) => {
-    const nums = [item.quantity, item.weightCatty, item.pricePerCatty];
+    const nums = item.kind === 'cart' ? [item.quantity, item.weightCatty, item.pricePerCatty] : [item.quantity, item.pricePerCatty];
     if (!['box', 'cart'].includes(item.kind)) itemErrors[i] = '品項類型錯誤';
     else if (!item.grade) itemErrors[i] = '請選擇規格';
     else if (!Number.isInteger(item.quantity) || item.quantity <= 0) itemErrors[i] = item.kind === 'box' ? '箱數請填正整數' : '車數請填正整數';
-    else if (nums.some((n) => typeof n !== 'number' || !Number.isFinite(n) || n < 0)) itemErrors[i] = '重量和單價請填數字';
+    else if (nums.some((n) => typeof n !== 'number' || !Number.isFinite(n) || n < 0)) {
+      itemErrors[i] = item.kind === 'cart' ? '總重和單價請填數字' : '單價請填數字';
+    }
     if (itemErrors[i]) return;
 
     const calc = calcItem(item, input.avgEggWeight, s);
@@ -130,7 +137,7 @@ export function validateShipment(input: ShipmentInput, s: ShipmentSettings): Shi
     if (item.kind === 'box' && input.avgEggWeight > 0) {
       const perBox = calc.eggs / item.quantity;
       if (perBox < s.boxEggsMin || perBox > s.boxEggsMax) {
-        itemWarnings[i] = `換算每箱約 ${Math.round(perBox)} 顆，超出 ${s.boxEggsMin}–${s.boxEggsMax}，請確認重量或蛋重`;
+        itemWarnings[i] = `換算每箱約 ${Math.round(perBox)} 顆，超出 ${s.boxEggsMin}–${s.boxEggsMax}，請確認平均蛋重`;
       }
     }
     if (item.kind === 'cart') {

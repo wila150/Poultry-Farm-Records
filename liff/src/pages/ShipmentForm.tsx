@@ -216,14 +216,21 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
                     <em>{QTY_UNIT[it.kind]}</em>
                   </div>
                 </label>
-                <label className="field">
-                  <span>{it.kind === 'box' ? '蛋淨重' : '上車總重'}</span>
-                  <div className="input-unit">
-                    <input inputMode="decimal" value={it.weightCatty} onChange={(e) => setItem(idx, { weightCatty: e.target.value })} />
-                    <em>台斤</em>
+                {it.kind === 'cart' ? (
+                  <label className="field">
+                    <span>上車總重</span>
+                    <div className="input-unit">
+                      <input inputMode="decimal" value={it.weightCatty} onChange={(e) => setItem(idx, { weightCatty: e.target.value })} />
+                      <em>台斤</em>
+                    </div>
+                    <small className="muted">每車扣 {settings.cartTareKg} kg</small>
+                  </label>
+                ) : (
+                  <div className="field">
+                    <span>重量</span>
+                    <p className="fixed-value">每箱 {settings.boxCatty} 台斤</p>
                   </div>
-                  {it.kind === 'cart' && <small className="muted">每車扣 {settings.cartTareKg} kg</small>}
-                </label>
+                )}
                 <label className="field">
                   <span>單價／台斤</span>
                   <div className="input-unit">

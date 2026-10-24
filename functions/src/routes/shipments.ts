@@ -188,6 +188,7 @@ shipmentsRouter.put('/farms/:id/shipment-settings', async (req, res) => {
     traysPerCart: Number(b.traysPerCart),
     eggsPerTray: Number(b.eggsPerTray),
     cartTareKg: Number(b.cartTareKg),
+    boxCatty: Number(b.boxCatty ?? DEFAULT_SHIPMENT_SETTINGS.boxCatty),
     boxEggsMin: Number(b.boxEggsMin),
     boxEggsMax: Number(b.boxEggsMax),
   };

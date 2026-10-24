@@ -332,7 +332,7 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
               <th>類型</th>
               <th>規格</th>
               <th>數量</th>
-              <th>秤重（台斤）</th>
+              <th>重量（台斤）</th>
               <th>單價／台斤</th>
               <th>淨重</th>
               <th>顆數</th>
@@ -368,8 +368,14 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
                     </div>
                   </td>
                   <td>
-                    <input inputMode="decimal" value={it.weightCatty} onChange={(e) => setItem(idx, { weightCatty: e.target.value })} />
-                    <small className="muted">{it.kind === 'cart' ? `含車，每車扣 ${settings.cartTareKg} kg` : '蛋淨重'}</small>
+                    {it.kind === 'cart' ? (
+                      <>
+                        <input inputMode="decimal" value={it.weightCatty} onChange={(e) => setItem(idx, { weightCatty: e.target.value })} />
+                        <small className="muted">含車總重，每車扣 {settings.cartTareKg} kg</small>
+                      </>
+                    ) : (
+                      <span className="muted">每箱 {settings.boxCatty} 台斤</span>
+                    )}
                   </td>
                   <td>
                     <input inputMode="decimal" value={it.pricePerCatty} onChange={(e) => setItem(idx, { pricePerCatty: e.target.value })} />
@@ -466,7 +472,7 @@ function PrintView({ farm, shipment: s, back }: { farm: WithId<Farm>; shipment: 
               <th>品項</th>
               <th>規格</th>
               <th>數量</th>
-              <th>秤重（台斤）</th>
+              <th>重量（台斤）</th>
               <th>淨重（台斤）</th>
               <th>顆數</th>
               <th>單價</th>
@@ -627,6 +633,7 @@ function Settings({ farm, settings, onSaved }: { farm: WithId<Farm>; settings: S
     traysPerCart: String(settings.traysPerCart),
     eggsPerTray: String(settings.eggsPerTray),
     cartTareKg: String(settings.cartTareKg),
+    boxCatty: String(settings.boxCatty),
     boxEggsMin: String(settings.boxEggsMin),
     boxEggsMax: String(settings.boxEggsMax),
   });
@@ -641,6 +648,7 @@ function Settings({ farm, settings, onSaved }: { farm: WithId<Farm>; settings: S
         traysPerCart: Number(v.traysPerCart),
         eggsPerTray: Number(v.eggsPerTray),
         cartTareKg: Number(v.cartTareKg),
+        boxCatty: Number(v.boxCatty),
         boxEggsMin: Number(v.boxEggsMin),
         boxEggsMax: Number(v.boxEggsMax),
       });
@@ -672,6 +680,7 @@ function Settings({ farm, settings, onSaved }: { farm: WithId<Farm>; settings: S
         {num('traysPerCart', '每車盤數', '盤')}
         {num('eggsPerTray', '每盤顆數', '顆')}
         {num('cartTareKg', '每車扣重', 'kg')}
+        {num('boxCatty', '原料箱每箱重量', '台斤')}
         {num('boxEggsMin', '原料箱每箱最少', '顆')}
         {num('boxEggsMax', '原料箱每箱最多', '顆')}
       </div>

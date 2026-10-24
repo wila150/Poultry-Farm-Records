@@ -149,3 +149,4 @@ pre.summary { white-space: pre-wrap; font: inherit; font-size: 15px; }
 .sync.offline { color: var(--warn); }
 .badge.draft { background: var(--warn-bg); color: var(--warn); font-weight: 600; }
 .error-detail { text-align: left; white-space: pre-wrap; font-size: 12px; color: var(--todo); overflow-x: auto; }
+.fixed-value { margin: 0; padding: 10px 0; color: var(--muted); }
