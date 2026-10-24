@@ -7,6 +7,7 @@ import {
   addDays,
   calcShipment,
   DEFAULT_SHIPMENT_SETTINGS,
+  isTopRole,
   isValidDate,
   shipmentHasErrors,
   shipmentSettingsOf,
@@ -23,7 +24,7 @@ import {
 
 export const shipmentsRouter = Router();
 
-const inFarm = (user: AuthedUser, farmId: string) => user.role === 'owner' || user.farmIds.includes(farmId);
+const inFarm = (user: AuthedUser, farmId: string) => isTopRole(user.role) || user.farmIds.includes(farmId);
 
 async function loadFarm(farmId: string) {
   const snap = await db.doc(`farms/${farmId}`).get();

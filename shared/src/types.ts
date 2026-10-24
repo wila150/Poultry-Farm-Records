@@ -2,7 +2,13 @@
 
 import type { ShipmentSettings } from './shipment';
 
-export type Role = 'owner' | 'manager' | 'staff';
+/** engineer：系統開發者，權限等同老闆並可管理老闆帳號，但不收任何通知、不出現在一般人員列表 */
+export type Role = 'engineer' | 'owner' | 'manager' | 'staff';
+
+export const ROLE_LABEL: Record<Role, string> = { engineer: '工程師', owner: '老闆', manager: '場長', staff: '員工' };
+
+/** 可看、可管理所有雞場 */
+export const isTopRole = (role: Role) => role === 'owner' || role === 'engineer';
 export type UserStatus = 'pending' | 'active' | 'disabled';
 
 export interface Farm {

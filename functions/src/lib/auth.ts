@@ -1,5 +1,5 @@
 import type { Request, RequestHandler } from 'express';
-import type { User } from '../shared';
+import { isTopRole, type User } from '../shared';
 import { LINE_LOGIN_CHANNEL_ID } from './config';
 import { auth, db } from './firebase';
 import { forbidden, unauthorized } from './http';
@@ -60,4 +60,4 @@ export function requireManager(req: Request): AuthedUser {
 }
 
 export const managesFarm = (user: AuthedUser, farmId: string) =>
-  user.role === 'owner' || (user.role === 'manager' && user.farmIds.includes(farmId));
+  isTopRole(user.role) || (user.role === 'manager' && user.farmIds.includes(farmId));

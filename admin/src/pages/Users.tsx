@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { House, Role, User } from '../../../shared/src';
+import { isTopRole, ROLE_LABEL, type House, type Role, type User } from '../../../shared/src';
 import { loadHouses, loadUsers, type WithId } from '../data';
 import { api } from '../session';
 
-const ROLE_LABEL: Record<Role, string> = { owner: '老闆', manager: '場長', staff: '員工' };
 
 export function Users({ me }: { me: WithId<User> }) {
   const [users, setUsers] = useState<WithId<User>[] | null>(null);
@@ -78,7 +77,7 @@ export function Users({ me }: { me: WithId<User> }) {
                           指派雞舍
                         </button>
                       )}
-                      {u.id !== me.id && u.role !== 'owner' && <DisableButton user={u} onDone={reload} />}
+                      {u.id !== me.id && u.role !== 'engineer' && (u.role !== 'owner' || me.role === 'engineer') && <DisableButton user={u} onDone={reload} />}
                     </td>
                   </tr>
                 ),
@@ -127,7 +126,7 @@ interface AssignProps {
 }
 
 function AssignForm({ me, user, houses, mode, onDone, onCancel }: AssignProps) {
-  const [role, setRole] = useState<Role>(user.role === 'owner' ? 'manager' : user.role);
+  const [role, setRole] = useState<Role>(user.role === 'engineer' ? 'manager' : user.role);
   const [selected, setSelected] = useState<Set<string>>(new Set(user.houseIds));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +161,8 @@ function AssignForm({ me, user, houses, mode, onDone, onCancel }: AssignProps) {
         {mode === 'approve' && (
           <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
             <option value="staff">員工</option>
-            {me.role === 'owner' && <option value="manager">場長</option>}
+            {isTopRole(me.role) && <option value="manager">場長</option>}
+            {me.role === 'engineer' && <option value="owner">老闆</option>}
           </select>
         )}
       </div>

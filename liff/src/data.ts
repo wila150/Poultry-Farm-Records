@@ -1,5 +1,5 @@
 import { collection, doc, getDoc, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
-import { recordId, type DailyRecord, type House, type User } from '../../shared/src';
+import { isTopRole, recordId, type DailyRecord, type House, type User } from '../../shared/src';
 import { auth, db } from './session';
 
 export type WithId<T> = T & { id: string };
@@ -13,7 +13,7 @@ export async function loadMe(): Promise<WithId<User>> {
 /** 登入者可以填寫的雞舍：員工＝指派給他的；場長、老闆＝雞場內所有啟用中的 */
 export async function loadMyHouses(me: WithId<User>): Promise<WithId<House>[]> {
   const q =
-    me.role === 'owner'
+    isTopRole(me.role)
       ? query(collection(db, 'houses'), where('active', '==', true))
       : query(collection(db, 'houses'), where('farmId', 'in', me.farmIds), where('active', '==', true));
   const snap = await getDocs(q);

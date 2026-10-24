@@ -1,5 +1,5 @@
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
-import type { Customer, DailyRecord, Farm, House, Shipment, User } from '../../shared/src';
+import { isTopRole, type Customer, type DailyRecord, type Farm, type House, type Shipment, type User } from '../../shared/src';
 import { api, auth, db } from './session';
 
 export type WithId<T> = T & { id: string };
@@ -11,7 +11,7 @@ export async function loadMe(): Promise<WithId<User>> {
 }
 
 export async function loadFarms(me: WithId<User>): Promise<WithId<Farm>[]> {
-  if (me.role === 'owner') {
+  if (isTopRole(me.role)) {
     const snap = await getDocs(collection(db, 'farms'));
     return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Farm) }));
   }

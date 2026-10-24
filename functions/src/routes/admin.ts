@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import {
   DEFAULT_ALERT_RULES,
   FIELD_GROUPS,
+  isTopRole,
   isValidDate,
   type CustomField,
   type Farm,
@@ -22,9 +23,11 @@ const str = (v: unknown, max = 50) => (typeof v === 'string' ? v.trim().slice(0,
  * 初始設定：系統裡還沒有老闆時，第一個呼叫的人成為老闆並建立第一個雞場。
  * 有老闆之後這支 API 就永久失效。
  */
+// 有老闆或工程師任一個就算完成設定
+const topUsers = () => db.collection('users').where('role', 'in', ['owner', 'engineer']).limit(1);
+
 adminRouter.get('/setup', async (_req, res) => {
-  const owners = await db.collection('users').where('role', '==', 'owner').limit(1).get();
-  res.json({ needed: owners.empty });
+  res.json({ needed: (await topUsers().get()).empty });
 });
 
 adminRouter.post('/setup', async (req, res) => {
@@ -33,7 +36,7 @@ adminRouter.post('/setup', async (req, res) => {
   if (!name || !farmName) throw badRequest('請填寫姓名和雞場名稱');
 
   await db.runTransaction(async (tx) => {
-    const owners = await tx.get(db.collection('users').where('role', '==', 'owner').limit(1));
+    const owners = await tx.get(topUsers());
     if (!owners.empty) throw conflict('系統已完成初始設定');
     const farmRef = db.collection('farms').doc();
     tx.set(farmRef, { name: farmName, location: str(req.body?.location), weatherStationId: null, createdAt: FieldValue.serverTimestamp() });
@@ -57,9 +60,11 @@ adminRouter.post('/setup', async (req, res) => {
 /** 人員列表（場長看自己雞場的人，老闆看全部） */
 adminRouter.get('/users', async (req, res) => {
   const me = requireManager(req);
-  const q = me.role === 'owner' ? db.collection('users') : db.collection('users').where('farmIds', 'array-contains-any', me.farmIds);
+  const q = isTopRole(me.role) ? db.collection('users') : db.collection('users').where('farmIds', 'array-contains-any', me.farmIds);
   const snap = await q.get();
-  res.json(snap.docs.map((d) => ({ id: d.id, ...(d.data() as User) })));
+  const users = snap.docs.map((d) => ({ id: d.id, ...(d.data() as User) }));
+  // 工程師帳號只有工程師看得到
+  res.json(me.role === 'engineer' ? users : users.filter((u) => u.role !== 'engineer'));
 });
 
 function farmInput(body: Record<string, unknown>): Farm {
@@ -70,7 +75,7 @@ function farmInput(body: Record<string, unknown>): Farm {
 
 adminRouter.post('/farms', async (req, res) => {
   const me = requireManager(req);
-  if (me.role !== 'owner') throw forbidden('只有老闆可以新增雞場');
+  if (!isTopRole(me.role)) throw forbidden('只有老闆可以新增雞場');
   const ref = await db.collection('farms').add({ ...farmInput(req.body ?? {}), createdAt: FieldValue.serverTimestamp() });
   await db.doc(`users/${me.id}`).update({ farmIds: FieldValue.arrayUnion(ref.id) });
   res.json({ id: ref.id });

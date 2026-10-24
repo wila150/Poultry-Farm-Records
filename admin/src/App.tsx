@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { User } from '../../shared/src';
+import { ROLE_LABEL, type User } from '../../shared/src';
 import { loadMe, type WithId } from './data';
 import { Export } from './pages/Export';
 import { Fields } from './pages/Fields';
@@ -78,7 +78,7 @@ export function App() {
         <button onClick={() => location.assign('/')}>‹ 填寫紀錄</button>
         <div className="me">
           <span>
-            {me.name}・{me.role === 'owner' ? '老闆' : '場長'}
+            {me.name}・{ROLE_LABEL[me.role]}
           </span>
           <button className="link" onClick={logout}>
             登出

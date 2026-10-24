@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type { Farm, House, User } from '../../../shared/src';
+import { isTopRole, type Farm, type House, type User } from '../../../shared/src';
 import { loadFarms, loadHouses, type WithId } from '../data';
 import { api } from '../session';
 
@@ -37,7 +37,7 @@ export function Houses({ me }: { me: WithId<User> }) {
     <>
       <header className="page-header row">
         <h1>雞場與雞舍</h1>
-        {me.role === 'owner' && (
+        {isTopRole(me.role) && (
           <button className="secondary small" onClick={() => setFarmDraft({ name: '', location: '', weatherStationId: null })}>
             ＋ 新增雞場
           </button>

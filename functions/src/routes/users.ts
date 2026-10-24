@@ -5,7 +5,7 @@ import { ADMIN_URL, LIFF_URL } from '../lib/config';
 import { db } from '../lib/firebase';
 import { badRequest, conflict, forbidden, notFound } from '../lib/http';
 import { farmManagerIds, linkMessage, push } from '../lib/line';
-import { taipeiDate, type Assignment, type House, type Role, type User } from '../shared';
+import { isTopRole, taipeiDate, type Assignment, type House, type Role, type User } from '../shared';
 
 export const usersRouter = Router();
 
@@ -54,7 +54,8 @@ async function loadTarget(manager: AuthedUser, uid: string) {
   if (!snap.exists) throw notFound('找不到使用者');
   const target = snap.data() as User;
   if (!target.farmIds.some((f) => managesFarm(manager, f))) throw forbidden();
-  if (target.role === 'owner' && manager.role !== 'owner') throw forbidden();
+  if (target.role === 'engineer' && manager.role !== 'engineer') throw forbidden();
+  if (target.role === 'owner' && !isTopRole(manager.role)) throw forbidden();
   return { ref, target };
 }
 
@@ -96,8 +97,9 @@ usersRouter.post('/users/:uid/approve', async (req, res) => {
   const manager = requireManager(req);
   const { ref, target } = await loadTarget(manager, req.params.uid);
   const role: Role = req.body?.role ?? 'staff';
-  if (!['staff', 'manager'].includes(role)) throw badRequest('角色錯誤');
-  if (role === 'manager' && manager.role !== 'owner') throw forbidden('只有老闆可以設定場長');
+  if (!['staff', 'manager', 'owner'].includes(role)) throw badRequest('角色錯誤');
+  if (role === 'manager' && !isTopRole(manager.role)) throw forbidden('只有老闆可以設定場長');
+  if (role === 'owner' && manager.role !== 'engineer') throw forbidden('只有工程師可以設定老闆');
   const houseIds = parseHouseIds(req.body?.houseIds ?? []);
 
   await ref.update({ status: 'active', role, updatedAt: FieldValue.serverTimestamp() });
