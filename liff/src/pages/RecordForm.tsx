@@ -16,7 +16,7 @@ import {
   type User,
 } from '../../../shared/src';
 import type { Route } from '../App';
-import { loadDraft, loadRecord, type WithId } from '../data';
+import { loadDraft, loadRecord, watchRecord, type WithId } from '../data';
 import { api, ApiError, closeLiff, db } from '../session';
 
 type Field = (typeof DAILY_RECORD_FIELDS)[number];
@@ -133,6 +133,8 @@ export function RecordForm({ me, house, date, go }: Props) {
   const [dirty, setDirty] = useState(false);
   const [sync, setSync] = useState<{ state: 'saving' | 'saved' | 'offline'; at?: number } | null>(null);
   const [retry, setRetry] = useState(0);
+  const [changedByOther, setChangedByOther] = useState(false);
+  const loadedAt = useRef<number | null>(null);
   const saving = useRef<Promise<unknown> | null>(null);
   const finished = useRef(false);
   const latest = useRef<{ values: Values | null; dirty: boolean }>({ values: null, dirty: false });
@@ -167,6 +169,7 @@ export function RecordForm({ me, house, date, go }: Props) {
         setBirdCountFrom(pre.birdCountFrom);
       }
       original.current = base;
+      loadedAt.current = (rec as { updatedAt?: { toMillis(): number } } | null)?.updatedAt?.toMillis() ?? 0;
 
       // 取最新的草稿（手機或雲端），而且要比已送出的紀錄新
       const recAt = (rec as { updatedAt?: { toMillis(): number } } | null)?.updatedAt?.toMillis() ?? 0;
@@ -186,6 +189,18 @@ export function RecordForm({ me, house, date, go }: Props) {
       }
     })().catch((e: Error) => setError(e.message));
   }, [house.id, date, key, readOnly]);
+
+  // 填寫中如果這一棟被別人送出或修改，提醒一下，避免互相覆蓋
+  useEffect(
+    () =>
+      watchRecord(house.id, date, (r) => {
+        const at = (r as { updatedAt?: { toMillis(): number } } | null)?.updatedAt?.toMillis();
+        if (r && at && loadedAt.current !== null && at > loadedAt.current && r.updatedBy !== me.id && !finished.current) {
+          setChangedByOther(true);
+        }
+      }),
+    [house.id, date, me.id],
+  );
 
   async function pushDraft(v: Values) {
     setSync({ state: 'saving' });
@@ -324,6 +339,14 @@ export function RecordForm({ me, house, date, go }: Props) {
     <main>
       {header}
       {readOnly && <p className="notice">只能修改今天和昨天的紀錄，如需更正請聯絡場長。</p>}
+      {changedByOther && (
+        <p className="notice">
+          這一棟剛剛被其他人送出或修改了。
+          <button type="button" className="link" onClick={() => go({ page: 'today' })}>
+            回首頁查看最新內容
+          </button>
+        </p>
+      )}
       {resumed && (
         <p className="notice">
           {resumed}，可以接著填。

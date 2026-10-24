@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { addDays, layingRate, taipeiDate, type DailyRecord, type House, type User } from '../../../shared/src';
 import type { Route } from '../App';
-import { loadDraft, loadMyHouses, loadRecord, type CloudDraft, type WithId } from '../data';
+import { loadMyHouses, watchDraft, watchRecord, type CloudDraft, type WithId } from '../data';
 import { openAdmin } from '../session';
 
 interface Row {
@@ -11,26 +11,45 @@ interface Row {
   draft: CloudDraft | null;
 }
 
+type Live<T> = Record<string, T | null>;
+
 export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) {
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const [houses, setHouses] = useState<WithId<House>[] | null>(null);
+  const [todays, setTodays] = useState<Live<DailyRecord>>({});
+  const [yesterdays, setYesterdays] = useState<Live<DailyRecord>>({});
+  const [drafts, setDrafts] = useState<Live<CloudDraft>>({});
   const [error, setError] = useState<string | null>(null);
   const today = taipeiDate();
   const yesterday = addDays(today, -1);
 
   useEffect(() => {
-    (async () => {
-      const houses = await loadMyHouses(me);
-      const loaded = await Promise.all(
-        houses.map(async (house) => ({
-          house,
-          ...(await Promise.all([loadRecord(house.id, today), loadRecord(house.id, yesterday), loadDraft(house.id, today)]).then(
-            ([t, y, d]) => ({ today: t, yesterday: y, draft: t ? null : d }),
-          )),
-        })),
-      );
-      setRows(loaded);
-    })().catch((e: Error) => setError(e.message));
-  }, [me, today, yesterday]);
+    loadMyHouses(me)
+      .then(setHouses)
+      .catch((e: Error) => setError(e.message));
+  }, [me]);
+
+  // 每棟監聽今天、昨天的紀錄和今天的草稿，別人送出或正在填時自動更新
+  useEffect(() => {
+    if (!houses) return;
+    const offs = houses.flatMap((h) => [
+      watchRecord(h.id, today, (r) => setTodays((m) => ({ ...m, [h.id]: r }))),
+      watchRecord(h.id, yesterday, (r) => setYesterdays((m) => ({ ...m, [h.id]: r }))),
+      watchDraft(h.id, today, (d) => setDrafts((m) => ({ ...m, [h.id]: d }))),
+    ]);
+    return () => offs.forEach((off) => off());
+  }, [houses, today, yesterday]);
+
+  const rows = useMemo<Row[] | null>(() => {
+    if (!houses) return null;
+    // 等每棟的今天紀錄都回來再顯示，避免先閃「未填寫」
+    if (houses.some((h) => !(h.id in todays))) return null;
+    return houses.map((house) => ({
+      house,
+      today: todays[house.id] ?? null,
+      yesterday: yesterdays[house.id] ?? null,
+      draft: todays[house.id] ? null : (drafts[house.id] ?? null),
+    }));
+  }, [houses, todays, yesterdays, drafts]);
 
   const done = rows?.filter((r) => r.today).length ?? 0;
 
@@ -45,7 +64,7 @@ export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) 
 
       {error && <p className="error">{error}</p>}
       {!rows && !error && <p className="muted">載入中…</p>}
-      {rows?.length === 0 && <p className="card muted">目前沒有指派給您的雞舍，請聯絡場長。</p>}
+      {houses?.length === 0 && <p className="card muted">目前沒有指派給您的雞舍，請聯絡場長。</p>}
 
       {rows && rows.length > 0 && (
         <p className="progress">

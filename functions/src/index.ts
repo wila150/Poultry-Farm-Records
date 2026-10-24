@@ -31,4 +31,4 @@ app.use(errorHandler);
 
 export const api = onRequest({ secrets: [LINE_CHANNEL_ACCESS_TOKEN], invoker: 'public' }, app);
 export { lineWebhook } from './webhook';
-export { remindManagers, remindStaff } from './jobs/reminders';
+export { reminders } from './jobs/reminders';

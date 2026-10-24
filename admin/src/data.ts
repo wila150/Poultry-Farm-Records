@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { isTopRole, type Customer, type DailyRecord, type Farm, type House, type Shipment, type User } from '../../shared/src';
 import { api, auth, db } from './session';
 
@@ -68,4 +68,17 @@ export async function loadRecordsBetween(farmId: string, from: string, to: strin
     ),
   );
   return snap.docs.map((d) => d.data() as DailyRecord);
+}
+
+/** 即時監聽某天的紀錄，有人送出時自動更新。回傳取消監聽的函式。 */
+export function watchRecordsOn(farmIds: string[], date: string, cb: (records: DailyRecord[]) => void, onError: (e: Error) => void) {
+  if (farmIds.length === 0) {
+    cb([]);
+    return () => {};
+  }
+  return onSnapshot(
+    query(collection(db, 'dailyRecords'), where('farmId', 'in', farmIds), where('date', '==', date)),
+    (snap) => cb(snap.docs.map((d) => d.data() as DailyRecord)),
+    onError,
+  );
 }

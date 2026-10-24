@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { layingRate, mortalityRate, taipeiDate, type DailyRecord, type Farm, type House, type User } from '../../../shared/src';
-import { loadFarms, loadHouses, loadRecordsOn, type WithId } from '../data';
+import { loadFarms, loadHouses, watchRecordsOn, type WithId } from '../data';
 
 const pct = (v: number | null) => (v === null ? '–' : `${v.toFixed(1)}%`);
 
@@ -14,13 +14,21 @@ export function Progress({ me }: { me: WithId<User> }) {
   useEffect(() => {
     (async () => {
       const fs = await loadFarms(me);
-      const ids = fs.map((f) => f.id);
-      const [hs, rs] = await Promise.all([loadHouses(ids), loadRecordsOn(ids, date)]);
+      setHouses((await loadHouses(fs.map((f) => f.id))).filter((h) => h.active));
       setFarms(fs);
-      setHouses(hs.filter((h) => h.active));
-      setRecords(new Map(rs.map((r) => [r.houseId, r])));
     })().catch((e: Error) => setError(e.message));
-  }, [me, date]);
+  }, [me]);
+
+  // 即時更新：員工送出紀錄時，這裡自動變成「已填」
+  useEffect(() => {
+    if (farms.length === 0) return;
+    return watchRecordsOn(
+      farms.map((f) => f.id),
+      date,
+      (rs) => setRecords(new Map(rs.map((r) => [r.houseId, r]))),
+      (e) => setError(e.message),
+    );
+  }, [farms, date]);
 
   return (
     <>

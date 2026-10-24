@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, where, type DocumentSnapshot } from 'firebase/firestore';
 import { isTopRole, recordId, type DailyRecord, type House, type User } from '../../shared/src';
 import { auth, db } from './session';
 
@@ -46,12 +46,24 @@ export interface CloudDraft {
   updatedByName: string;
 }
 
-export async function loadDraft(houseId: string, date: string): Promise<CloudDraft | null> {
-  const snap = await getDoc(doc(db, 'drafts', recordId(houseId, date)));
+function toDraft(snap: DocumentSnapshot): CloudDraft | null {
   if (!snap.exists()) return null;
   return {
     values: snap.get('values') ?? {},
     updatedAt: snap.get('updatedAt')?.toMillis?.() ?? 0,
     updatedByName: snap.get('updatedByName') ?? '',
   };
+}
+
+export async function loadDraft(houseId: string, date: string): Promise<CloudDraft | null> {
+  return toDraft(await getDoc(doc(db, 'drafts', recordId(houseId, date))));
+}
+
+// 即時同步：別人送出或正在填寫時，畫面自動更新。回傳取消監聽的函式。
+export function watchRecord(houseId: string, date: string, cb: (r: DailyRecord | null) => void) {
+  return onSnapshot(doc(db, 'dailyRecords', recordId(houseId, date)), (s) => cb(s.exists() ? (s.data() as DailyRecord) : null));
+}
+
+export function watchDraft(houseId: string, date: string, cb: (d: CloudDraft | null) => void) {
+  return onSnapshot(doc(db, 'drafts', recordId(houseId, date)), (s) => cb(toDraft(s)));
 }

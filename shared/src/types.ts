@@ -1,5 +1,6 @@
 // 前端、後端共用的資料型別。時間戳記欄位在各端以各自的 Timestamp 型別表示，這裡不列出。
 
+import type { ReminderSettings } from './reminders';
 import type { ShipmentSettings } from './shipment';
 
 /** engineer：系統開發者，權限等同老闆並可管理老闆帳號，但不收任何通知、不出現在一般人員列表 */
@@ -19,6 +20,8 @@ export interface Farm {
   shipmentSettings?: Partial<ShipmentSettings>;
   /** 後台自訂的每日紀錄填寫項目 */
   customFields?: CustomField[];
+  /** 未設定時使用 DEFAULT_REMINDER_SETTINGS */
+  reminderSettings?: Partial<ReminderSettings>;
 }
 
 export const FIELD_GROUPS = ['雞隻', '產蛋', '飼養', '環境', '其他'] as const;

@@ -5,6 +5,7 @@ import { Export } from './pages/Export';
 import { Fields } from './pages/Fields';
 import { Houses } from './pages/Houses';
 import { Progress } from './pages/Progress';
+import { Reminders } from './pages/Reminders';
 import { Setup } from './pages/Setup';
 import { Shipments } from './pages/Shipments';
 import { Users } from './pages/Users';
@@ -16,6 +17,7 @@ const PAGES = {
   users: { label: '人員管理', Component: Users },
   houses: { label: '雞場與雞舍', Component: Houses },
   fields: { label: '填寫項目', Component: Fields },
+  reminders: { label: '提醒設定', Component: Reminders },
   export: { label: '匯出資料', Component: Export },
 } as const;
 type PageKey = keyof typeof PAGES;

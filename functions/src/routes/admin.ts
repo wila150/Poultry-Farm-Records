@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import {
   DEFAULT_ALERT_RULES,
   FIELD_GROUPS,
+  isReminderSlot,
   isTopRole,
   isValidDate,
   type CustomField,
@@ -149,5 +150,21 @@ adminRouter.put('/farms/:id/custom-fields', async (req, res) => {
   const kept = existing.filter((f) => !sent.has(f.key)).map((f) => ({ ...f, active: false }));
 
   await ref.update({ customFields: [...fields, ...kept] });
+  res.json({ ok: true });
+});
+
+/** 未填提醒時間（台灣時間，30 分鐘為單位） */
+adminRouter.put('/farms/:id/reminder-settings', async (req, res) => {
+  const me = requireManager(req);
+  if (!managesFarm(me, req.params.id)) throw forbidden();
+  const raw = req.body?.staffTimes;
+  if (!Array.isArray(raw) || !raw.every(isReminderSlot)) throw badRequest('提醒時間格式錯誤');
+  const staffTimes = [...new Set(raw as string[])].sort();
+  if (staffTimes.length > 4) throw badRequest('員工提醒最多設定 4 個時間');
+  const managerTime = req.body?.managerTime ?? null;
+  if (managerTime !== null && !isReminderSlot(managerTime)) throw badRequest('場長通知時間格式錯誤');
+  const ref = db.doc(`farms/${req.params.id}`);
+  if (!(await ref.get()).exists) throw notFound();
+  await ref.update({ reminderSettings: { staffTimes, managerTime } });
   res.json({ ok: true });
 });
