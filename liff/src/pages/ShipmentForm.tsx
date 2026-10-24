@@ -1,4 +1,3 @@
-import liff from '@line/liff';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
@@ -15,7 +14,7 @@ import {
 } from '../../../shared/src';
 import type { Route } from '../App';
 import type { WithId } from '../data';
-import { api, db } from '../session';
+import { api, db, getLiff } from '../session';
 
 const QTY_UNIT = { box: '箱', cart: '車' } as const;
 const fmt = (n: number) => n.toLocaleString('zh-TW');
@@ -124,6 +123,7 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
   async function share() {
     if (!saved) return;
     try {
+      const liff = await getLiff();
       if (liff.isApiAvailable('shareTargetPicker')) {
         await liff.shareTargetPicker([{ type: 'text', text: saved.summary }]);
       } else {

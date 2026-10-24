@@ -22,8 +22,10 @@ export function Today({ me, go }: { me: WithId<User>; go: (r: Route) => void }) 
       const loaded = await Promise.all(
         houses.map(async (house) => ({
           house,
-          today: await loadRecord(house.id, today),
-          yesterday: await loadRecord(house.id, yesterday),
+          ...(await Promise.all([loadRecord(house.id, today), loadRecord(house.id, yesterday)]).then(([t, y]) => ({
+            today: t,
+            yesterday: y,
+          }))),
         })),
       );
       setRows(loaded);

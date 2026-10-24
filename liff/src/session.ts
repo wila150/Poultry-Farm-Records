@@ -1,7 +1,7 @@
-import liff from '@line/liff';
+import type { Liff } from '@line/liff';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged, signInWithCustomToken, type User as AuthUser } from 'firebase/auth';
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { firebaseConfig, LIFF_ID } from '../../shared/src/firebaseConfig';
 
 const app = initializeApp(firebaseConfig);
@@ -10,12 +10,39 @@ export const db = getFirestore(app);
 
 export type BootStatus = 'new' | 'pending' | 'active' | 'disabled';
 
+// Firebase 會把登入狀態存在瀏覽器裡；等它還原完成再判斷是否需要重新登入
+const authReady = new Promise<AuthUser | null>((resolve) => {
+  const off = onAuthStateChanged(auth, (u) => {
+    off();
+    resolve(u);
+  });
+});
+
+// LINE SDK 用到才載入，減少第一次開啟要下載的檔案
+let liffPromise: Promise<Liff> | null = null;
+export function getLiff(): Promise<Liff> {
+  liffPromise ??= import('@line/liff').then(async ({ default: liff }) => {
+    await liff.init({ liffId: LIFF_ID });
+    return liff;
+  });
+  return liffPromise;
+}
+
 /**
- * LIFF 登入 → 後端驗證 ID Token → Firebase 登入。
- * 呼叫 /api/auth/line 的同時也會叫醒 Cloud Functions，員工填完表單送出時就不會遇到冷啟動。
+ * 已登入過：直接讀自己的帳號狀態，不經過後端也不等 LINE。
+ * 第一次或登入失效：LIFF 登入 → 後端驗證 ID Token → Firebase 登入。
  */
 export async function boot(): Promise<BootStatus | 'redirecting'> {
-  await liff.init({ liffId: LIFF_ID });
+  // 先叫醒 Cloud Functions，送出表單時就不會遇到冷啟動
+  fetch('/api/ping').catch(() => {});
+
+  const current = await authReady;
+  if (current) {
+    const snap = await getDoc(doc(db, 'users', current.uid));
+    return snap.exists() ? (snap.get('status') as BootStatus) : 'new';
+  }
+
+  const liff = await getLiff();
   if (!liff.isLoggedIn()) {
     liff.login({ redirectUri: location.href });
     return 'redirecting';
@@ -28,6 +55,12 @@ export async function boot(): Promise<BootStatus | 'redirecting'> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ idToken }),
   });
+  // ID Token 過期時重新登入一次
+  if (res.status === 401) {
+    liff.logout();
+    liff.login({ redirectUri: location.href });
+    return 'redirecting';
+  }
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? '登入失敗');
   await signInWithCustomToken(auth, data.token);
@@ -59,11 +92,16 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return data as T;
 }
 
-export const closeLiff = () => (liff.isInClient() ? liff.closeWindow() : undefined);
+export async function closeLiff() {
+  const liff = await getLiff();
+  if (liff.isInClient()) liff.closeWindow();
+  else history.back();
+}
 
 /** 後台用外部瀏覽器開啟（畫面較大、可下載匯出檔）；不在 LINE 裡時直接切換頁面 */
-export function openAdmin() {
+export async function openAdmin() {
   const url = `${location.origin}/admin/`;
+  const liff = await getLiff();
   if (liff.isInClient()) liff.openWindow({ url, external: true });
   else location.assign(url);
 }
