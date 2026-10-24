@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { FieldValue } from 'firebase-admin/firestore';
 import { managesFarm, requireActive, requireManager, type AuthedUser } from '../lib/auth';
@@ -17,6 +18,7 @@ import {
   type Customer,
   type DailyRecord,
   type Farm,
+  type PackageType,
   type Shipment,
   type ShipmentInput,
   type ShipmentSettings,
@@ -70,7 +72,7 @@ function parseInput(body: Record<string, unknown>): ShipmentInput {
     avgEggWeight: Number(body.avgEggWeight),
     note: typeof body.note === 'string' ? body.note.trim() : '',
     items: items.map((i: Record<string, unknown>) => ({
-      kind: i.kind === 'cart' ? 'cart' : 'box',
+      packageId: String(i.packageId ?? ''),
       grade: String(i.grade ?? ''),
       quantity: Number(i.quantity),
       weightCatty: Number(i.weightCatty),
@@ -180,20 +182,50 @@ shipmentsRouter.put('/customers/:id', async (req, res) => {
 shipmentsRouter.put('/farms/:id/shipment-settings', async (req, res) => {
   const user = requireManager(req);
   if (!managesFarm(user, req.params.id)) throw forbidden();
+  const ref = db.doc(`farms/${req.params.id}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw notFound();
+  const existing = shipmentSettingsOf(snap.data() as Farm).packages;
+  const known = new Set(existing.map((p) => p.id));
+
   const b = req.body ?? {};
   const grades = Array.isArray(b.grades) ? [...new Set(b.grades.map((g: unknown) => String(g).trim()).filter(Boolean))] : [];
-  const settings: ShipmentSettings = {
-    grades: grades.length > 0 ? (grades as string[]) : DEFAULT_SHIPMENT_SETTINGS.grades,
-    traysPerCart: Number(b.traysPerCart),
-    eggsPerTray: Number(b.eggsPerTray),
-    cartTareKg: Number(b.cartTareKg),
-    boxCatty: Number(b.boxCatty ?? DEFAULT_SHIPMENT_SETTINGS.boxCatty),
-    boxEggsMin: Number(b.boxEggsMin),
-    boxEggsMax: Number(b.boxEggsMax),
+  const raw: Record<string, unknown>[] = Array.isArray(b.packages) ? b.packages : [];
+  if (raw.length === 0 || raw.length > 20) throw badRequest('包裝方式請設定 1–20 種');
+
+  const num = (v: unknown, label: string, min = 0) => {
+    const n = Number(v ?? 0);
+    if (!Number.isFinite(n) || n < min) throw badRequest(`${label}請填 ${min} 以上的數字`);
+    return n;
   };
-  const { grades: _, ...nums } = settings;
-  if (Object.values(nums).some((n) => !Number.isFinite(n) || n <= 0)) throw badRequest('設定值請填正數');
-  if (settings.boxEggsMin > settings.boxEggsMax) throw badRequest('每箱顆數下限不能大於上限');
-  await db.doc(`farms/${req.params.id}`).update({ shipmentSettings: settings });
+  const packages: PackageType[] = raw.map((p) => {
+    const name = String(p.name ?? '').trim().slice(0, 20);
+    const unit = String(p.unit ?? '').trim().slice(0, 5);
+    if (!name || !unit) throw badRequest('請填寫包裝名稱和單位');
+    const weightMode = (['fixed', 'gross', 'net'] as const).find((m) => m === p.weightMode) ?? 'net';
+    const eggMode = (['perUnit', 'byWeight'] as const).find((m) => m === p.eggMode) ?? 'byWeight';
+    const pkg: PackageType = {
+      id: typeof p.id === 'string' && known.has(p.id) ? p.id : `p${randomBytes(4).toString('hex')}`,
+      name,
+      unit,
+      weightMode,
+      unitCatty: weightMode === 'fixed' ? num(p.unitCatty, `${name}每${unit}重量`, 0.1) : 0,
+      tareKg: weightMode === 'gross' ? num(p.tareKg, `${name}每${unit}空重`) : 0,
+      eggMode,
+      eggsPerUnit: eggMode === 'perUnit' ? num(p.eggsPerUnit, `${name}每${unit}顆數`, 1) : 0,
+      eggsMin: num(p.eggsMin, '顆數下限'),
+      eggsMax: num(p.eggsMax, '顆數上限'),
+      active: p.active !== false,
+    };
+    if (pkg.eggsMin > 0 && pkg.eggsMax > 0 && pkg.eggsMin > pkg.eggsMax) throw badRequest(`${name}的顆數下限不能大於上限`);
+    return pkg;
+  });
+  if (!packages.some((p) => p.active)) throw badRequest('至少要有一種啟用的包裝方式');
+  // 送來的清單裡少了的舊包裝改為停用保留，舊出貨單才查得到
+  const sent = new Set(packages.map((p) => p.id));
+  const kept = existing.filter((p) => !sent.has(p.id)).map((p) => ({ ...p, active: false }));
+
+  const settings: ShipmentSettings = { grades: grades.length > 0 ? (grades as string[]) : DEFAULT_SHIPMENT_SETTINGS.grades, packages: [...packages, ...kept] };
+  await ref.update({ shipmentSettings: settings });
   res.json({ ok: true });
 });

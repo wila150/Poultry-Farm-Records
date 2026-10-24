@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
-import { addDays, layingRate, mortalityRate, taipeiDate, type Farm, type User } from '../../../shared/src';
+import { addDays, itemPackageName, itemUnit, layingRate, mortalityRate, taipeiDate, type Farm, type User } from '../../../shared/src';
 import { downloadCsv } from '../csv';
 import { loadFarms, loadHouses, loadRecordsBetween, loadShipments, loadUsers, type WithId } from '../data';
 
-const KIND_LABEL = { box: '原料箱', cart: '蛋盤車' } as const;
-const QTY_UNIT = { box: '箱', cart: '車' } as const;
 const round = (v: number | null, d = 2) => (v === null ? null : Number(v.toFixed(d)));
 
 export function Export({ me }: { me: WithId<User> }) {
@@ -73,10 +71,10 @@ export function Export({ me }: { me: WithId<User> }) {
       if (list.length === 0) return 0;
       downloadCsv(
         `出貨單_${farm?.name}_${from}_${to}.csv`,
-        ['單號', '日期', '客戶', '狀態', '類型', '規格', '數量', '單位', '重量(台斤)', '淨重(台斤)', '顆數', '平均蛋重(g)', '備註'],
+        ['單號', '日期', '客戶', '狀態', '包裝', '規格', '數量', '單位', '重量(台斤)', '淨重(台斤)', '顆數', '平均蛋重(g)', '備註'],
         list.flatMap((s) =>
           s.items.map((i) => [
-            s.no, s.date, s.customerName, s.voided ? '作廢' : '有效', KIND_LABEL[i.kind], i.grade, i.quantity, QTY_UNIT[i.kind],
+            s.no, s.date, s.customerName, s.voided ? '作廢' : '有效', itemPackageName(i), i.grade, i.quantity, itemUnit(i),
             i.weightCatty, i.netCatty, i.eggs, s.avgEggWeight, s.note,
           ]),
         ),

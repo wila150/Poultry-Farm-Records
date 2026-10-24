@@ -2,13 +2,24 @@ import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   addDays,
   calcShipment,
+  EGG_MODE_LABEL,
+  findPackage,
+  itemPackageId,
+  itemPackageName,
+  itemUnit,
+  needsWeight,
   shipmentHasErrors,
   shipmentSettingsOf,
   taipeiDate,
   validateShipment,
+  WEIGHT_MODE_LABEL,
+  weightHint,
   type Customer,
+  type EggMode,
   type Farm,
+  type PackageType,
   type Shipment,
+  type WeightMode,
   type ShipmentInput,
   type ShipmentItemInput,
   type ShipmentSettings,
@@ -24,8 +35,6 @@ type View =
   | { name: 'customers' }
   | { name: 'settings' };
 
-const KIND_LABEL = { box: '原料箱', cart: '蛋盤車' } as const;
-const QTY_UNIT = { box: '箱', cart: '車' } as const;
 const fmt = (n: number) => n.toLocaleString('zh-TW');
 
 export function Shipments({ me }: { me: WithId<User> }) {
@@ -160,7 +169,7 @@ function ShipmentList({ farm, setView }: { farm: WithId<Farm>; setView: (v: View
                   <td>{s.date}</td>
                   <td>{s.customerName}</td>
                   <td className="muted">
-                    {s.items.map((i) => `${i.grade} ${i.quantity}${QTY_UNIT[i.kind]}`).join('、')}
+                    {s.items.map((i) => `${i.grade} ${i.quantity}${itemUnit(i)}`).join('、')}
                   </td>
                   <td>{fmt(s.totalEggs)}</td>
                   <td>{fmt(s.totalCatty)}</td>
@@ -197,10 +206,12 @@ function ShipmentList({ farm, setView }: { farm: WithId<Farm>; setView: (v: View
   );
 }
 
-type ItemDraft = Record<'quantity' | 'weightCatty', string> & Pick<ShipmentItemInput, 'kind' | 'grade'>;
+type ItemDraft = Record<'quantity' | 'weightCatty', string> & Pick<ShipmentItemInput, 'packageId' | 'grade'>;
+
+const activePackages = (s: ShipmentSettings) => s.packages.filter((p) => p.active);
 
 const newItem = (s: ShipmentSettings, prev?: ItemDraft): ItemDraft => ({
-  kind: prev?.kind ?? 'box',
+  packageId: prev?.packageId ?? activePackages(s)[0]?.id ?? '',
   grade: prev?.grade ?? s.grades[0] ?? '',
   quantity: '',
   weightCatty: '',
@@ -222,7 +233,7 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
   const [eggWeightFrom, setEggWeightFrom] = useState<string | null>(null);
   const [items, setItems] = useState<ItemDraft[]>(
     shipment?.items.map((i) => ({
-      kind: i.kind,
+      packageId: itemPackageId(i),
       grade: i.grade,
       quantity: String(i.quantity),
       weightCatty: String(i.weightCatty),
@@ -257,7 +268,7 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
       avgEggWeight: Number(eggWeight),
       note: note.trim(),
       items: items.map((i) => ({
-        kind: i.kind,
+        packageId: i.packageId,
         grade: i.grade,
         quantity: Number(i.quantity),
         weightCatty: Number(i.weightCatty),
@@ -322,7 +333,7 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
         <table className="items">
           <thead>
             <tr>
-              <th>類型</th>
+              <th>包裝</th>
               <th>規格</th>
               <th>數量</th>
               <th>重量（台斤）</th>
@@ -334,15 +345,21 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
           <tbody>
             {items.map((it, idx) => {
               const c = calc.items[idx];
+              const pkg = findPackage(settings, it.packageId);
               const err = submitted ? v.itemErrors[idx] : '';
               const warn = v.itemWarnings[idx];
               return (
                 <Fragment key={idx}>
                 <tr>
                   <td>
-                    <select value={it.kind} onChange={(e) => setItem(idx, { kind: e.target.value as ItemDraft['kind'] })}>
-                      <option value="box">原料箱</option>
-                      <option value="cart">蛋盤車</option>
+                    <select value={it.packageId} onChange={(e) => setItem(idx, { packageId: e.target.value })}>
+                      {settings.packages
+                        .filter((p) => p.active || p.id === it.packageId)
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
                     </select>
                   </td>
                   <td>
@@ -355,17 +372,17 @@ function ShipmentForm({ farm, settings, shipment, onSaved, onCancel }: FormProps
                   <td>
                     <div className="input-unit">
                       <input inputMode="numeric" value={it.quantity} onChange={(e) => setItem(idx, { quantity: e.target.value })} />
-                      <em>{QTY_UNIT[it.kind]}</em>
+                      <em>{pkg?.unit}</em>
                     </div>
                   </td>
                   <td>
-                    {it.kind === 'cart' ? (
+                    {pkg && needsWeight(pkg) ? (
                       <>
                         <input inputMode="decimal" value={it.weightCatty} onChange={(e) => setItem(idx, { weightCatty: e.target.value })} />
-                        <small className="muted">含車總重，每車扣 {settings.cartTareKg} kg</small>
+                        <small className="muted">{weightHint(pkg)}</small>
                       </>
                     ) : (
-                      <span className="muted">每箱 {settings.boxCatty} 台斤</span>
+                      <span className="muted">{pkg ? weightHint(pkg) : '–'}</span>
                     )}
                   </td>
                   <td>{c && c.netCatty > 0 ? fmt(c.netCatty) : '–'}</td>
@@ -455,7 +472,7 @@ function PrintView({ farm, shipment: s, back }: { farm: WithId<Farm>; shipment: 
         <table>
           <thead>
             <tr>
-              <th>品項</th>
+              <th>包裝</th>
               <th>規格</th>
               <th>數量</th>
               <th>重量（台斤）</th>
@@ -466,10 +483,10 @@ function PrintView({ farm, shipment: s, back }: { farm: WithId<Farm>; shipment: 
           <tbody>
             {s.items.map((i, idx) => (
               <tr key={idx}>
-                <td>{KIND_LABEL[i.kind]}</td>
+                <td>{itemPackageName(i)}</td>
                 <td>{i.grade}</td>
                 <td>
-                  {i.quantity} {QTY_UNIT[i.kind]}
+                  {i.quantity} {itemUnit(i)}
                 </td>
                 <td>{fmt(i.weightCatty)}</td>
                 <td>{fmt(i.netCatty)}</td>
@@ -486,7 +503,7 @@ function PrintView({ farm, shipment: s, back }: { farm: WithId<Farm>; shipment: 
           </tfoot>
         </table>
         <p className="muted small">
-          原料箱顆數以平均蛋重 {s.avgEggWeight} g 換算；蛋盤車以整車盤數計算。
+          依重量換算的顆數以平均蛋重 {s.avgEggWeight} g 計算。
         </p>
         {s.note && <p>備註：{s.note}</p>}
         <footer>
@@ -607,43 +624,69 @@ function Customers({ farm }: { farm: WithId<Farm> }) {
   );
 }
 
+type PackageDraft = Omit<PackageType, 'id' | 'unitCatty' | 'tareKg' | 'eggsPerUnit' | 'eggsMin' | 'eggsMax'> & {
+  id?: string;
+} & Record<'unitCatty' | 'tareKg' | 'eggsPerUnit' | 'eggsMin' | 'eggsMax', string>;
+
+const toDraft = (p: PackageType): PackageDraft => ({
+  ...p,
+  unitCatty: String(p.unitCatty || ''),
+  tareKg: String(p.tareKg || ''),
+  eggsPerUnit: String(p.eggsPerUnit || ''),
+  eggsMin: String(p.eggsMin || ''),
+  eggsMax: String(p.eggsMax || ''),
+});
+
+const blankPackage = (): PackageDraft => ({
+  name: '',
+  unit: '',
+  weightMode: 'fixed',
+  unitCatty: '',
+  tareKg: '',
+  eggMode: 'byWeight',
+  eggsPerUnit: '',
+  eggsMin: '',
+  eggsMax: '',
+  active: true,
+});
+
 function Settings({ farm, settings, onSaved }: { farm: WithId<Farm>; settings: ShipmentSettings; onSaved: () => Promise<void> }) {
-  const [v, setV] = useState({
-    grades: settings.grades.join('、'),
-    traysPerCart: String(settings.traysPerCart),
-    eggsPerTray: String(settings.eggsPerTray),
-    cartTareKg: String(settings.cartTareKg),
-    boxCatty: String(settings.boxCatty),
-    boxEggsMin: String(settings.boxEggsMin),
-    boxEggsMax: String(settings.boxEggsMax),
-  });
-  const [msg, setMsg] = useState<string | null>(null);
+  const [grades, setGrades] = useState(settings.grades.join('、'));
+  const [packages, setPackages] = useState<PackageDraft[]>(settings.packages.map(toDraft));
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const update = (i: number, patch: Partial<PackageDraft>) => setPackages(packages.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
 
   async function save(e: FormEvent) {
     e.preventDefault();
     setMsg(null);
     try {
       await api('PUT', `/farms/${farm.id}/shipment-settings`, {
-        grades: v.grades.split(/[、,，\s]+/),
-        traysPerCart: Number(v.traysPerCart),
-        eggsPerTray: Number(v.eggsPerTray),
-        cartTareKg: Number(v.cartTareKg),
-        boxCatty: Number(v.boxCatty),
-        boxEggsMin: Number(v.boxEggsMin),
-        boxEggsMax: Number(v.boxEggsMax),
+        grades: grades.split(/[、,，\s]+/),
+        // 還沒存過的新包裝若被停用，直接丟掉
+        packages: packages
+          .filter((p) => p.id || p.active)
+          .map((p) => ({
+            ...p,
+            unitCatty: Number(p.unitCatty),
+            tareKg: Number(p.tareKg),
+            eggsPerUnit: Number(p.eggsPerUnit),
+            eggsMin: Number(p.eggsMin),
+            eggsMax: Number(p.eggsMax),
+          })),
       });
       await onSaved();
-      setMsg('已儲存');
+      setMsg({ ok: true, text: '已儲存，開單畫面會立即套用' });
     } catch (err) {
-      setMsg((err as Error).message);
+      setMsg({ ok: false, text: (err as Error).message });
     }
   }
 
-  const num = (k: keyof typeof v, label: string, unit: string) => (
+  const numField = (i: number, k: 'unitCatty' | 'tareKg' | 'eggsPerUnit' | 'eggsMin' | 'eggsMax', label: string, unit: string) => (
     <label className="field">
       <span>{label}</span>
       <div className="input-unit">
-        <input inputMode="numeric" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })} />
+        <input inputMode="decimal" value={packages[i][k]} onChange={(e) => update(i, { [k]: e.target.value })} />
         <em>{unit}</em>
       </div>
     </label>
@@ -652,20 +695,64 @@ function Settings({ farm, settings, onSaved }: { farm: WithId<Farm>; settings: S
   return (
     <form className="card" onSubmit={save}>
       <h2>出貨設定・{farm.name}</h2>
-      <div className="inline-form">
-        <label className="field full">
-          <span>蛋的規格（用頓號分隔）</span>
-          <input value={v.grades} onChange={(e) => setV({ ...v, grades: e.target.value })} />
-        </label>
-        {num('traysPerCart', '每車盤數', '盤')}
-        {num('eggsPerTray', '每盤顆數', '顆')}
-        {num('cartTareKg', '每車扣重', 'kg')}
-        {num('boxCatty', '原料箱每箱重量', '台斤')}
-        {num('boxEggsMin', '原料箱每箱最少', '顆')}
-        {num('boxEggsMax', '原料箱每箱最多', '顆')}
+      <label className="field">
+        <span>蛋的規格（用頓號分隔）</span>
+        <input value={grades} onChange={(e) => setGrades(e.target.value)} />
+      </label>
+
+      <h3 className="sub-title">包裝方式</h3>
+      <p className="muted small">每種包裝由「重量怎麼算」和「顆數怎麼算」組成。停用只是不再出現在開單畫面，舊出貨單不受影響。</p>
+      {packages.map((p, i) => (
+        <div key={p.id ?? `new-${i}`} className={`package ${p.active ? '' : 'inactive'}`}>
+          <div className="inline-form">
+            <label className="field">
+              <span>名稱</span>
+              <input value={p.name} maxLength={20} placeholder="例如：紙箱" onChange={(e) => update(i, { name: e.target.value })} />
+            </label>
+            <label className="field">
+              <span>單位</span>
+              <input value={p.unit} maxLength={5} placeholder="箱" onChange={(e) => update(i, { unit: e.target.value })} />
+            </label>
+            <label className="field">
+              <span>重量怎麼算</span>
+              <select value={p.weightMode} onChange={(e) => update(i, { weightMode: e.target.value as WeightMode })}>
+                {Object.entries(WEIGHT_MODE_LABEL).map(([k, l]) => (
+                  <option key={k} value={k}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {p.weightMode === 'fixed' && numField(i, 'unitCatty', `每${p.unit || '單位'}重量`, '台斤')}
+            {p.weightMode === 'gross' && numField(i, 'tareKg', `每${p.unit || '單位'}空重`, 'kg')}
+            <label className="field">
+              <span>顆數怎麼算</span>
+              <select value={p.eggMode} onChange={(e) => update(i, { eggMode: e.target.value as EggMode })}>
+                {Object.entries(EGG_MODE_LABEL).map(([k, l]) => (
+                  <option key={k} value={k}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {p.eggMode === 'perUnit' && numField(i, 'eggsPerUnit', `每${p.unit || '單位'}顆數`, '顆')}
+            {p.eggMode === 'byWeight' && numField(i, 'eggsMin', `每${p.unit || '單位'}最少（選填）`, '顆')}
+            {p.eggMode === 'byWeight' && numField(i, 'eggsMax', `每${p.unit || '單位'}最多（選填）`, '顆')}
+            <label className="field checkbox">
+              <input type="checkbox" checked={p.active} onChange={(e) => update(i, { active: e.target.checked })} />
+              <span>啟用</span>
+            </label>
+          </div>
+        </div>
+      ))}
+      <button type="button" className="link" onClick={() => setPackages([...packages, blankPackage()])}>
+        ＋ 新增包裝方式
+      </button>
+
+      {msg && <p className={msg.ok ? 'notice ok' : 'error'}>{msg.text}</p>}
+      <div>
+        <button className="primary small">儲存設定</button>
       </div>
-      {msg && <p className={msg === '已儲存' ? 'muted' : 'error'}>{msg}</p>}
-      <button className="primary small">儲存設定</button>
     </form>
   );
 }

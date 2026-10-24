@@ -258,3 +258,6 @@ td.order .link { padding: 0 4px; }
 .chip-x { border: 0; background: none; color: inherit; font-size: 16px; line-height: 1; padding: 0 0 0 4px; cursor: pointer; }
 @media (max-width: 720px) { .reminder-row { grid-template-columns: 1fr; } }
 .card > button.primary.small { margin-top: 12px; }
+.sub-title { font-size: 15px; margin: 20px 0 4px; }
+.package { border: 1px solid var(--border); border-radius: 12px; padding: 4px 14px; margin: 10px 0; }
+.package.inactive { opacity: .55; }

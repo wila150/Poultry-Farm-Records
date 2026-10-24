@@ -2,6 +2,9 @@ import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firesto
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   calcShipment,
+  findPackage,
+  needsWeight,
+  weightHint,
   shipmentHasErrors,
   shipmentSettingsOf,
   taipeiDate,
@@ -9,18 +12,16 @@ import {
   type Customer,
   type Farm,
   type ShipmentInput,
-  type ShipmentItemKind,
   type User,
 } from '../../../shared/src';
 import type { Route } from '../App';
 import type { WithId } from '../data';
 import { api, db, getLiff } from '../session';
 
-const QTY_UNIT = { box: '箱', cart: '車' } as const;
 const fmt = (n: number) => n.toLocaleString('zh-TW');
 
 interface ItemDraft {
-  kind: ShipmentItemKind;
+  packageId: string;
   grade: string;
   quantity: string;
   weightCatty: string;
@@ -60,7 +61,7 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
       );
       setEggWeight(w.avgEggWeight === null ? '' : String(w.avgEggWeight));
       setEggWeightFrom(w.from);
-      setItems([{ kind: 'box', grade: s.grades[0] ?? '', quantity: '', weightCatty: '' }]);
+      setItems([{ packageId: s.packages.find((p) => p.active)?.id ?? '', grade: s.grades[0] ?? '', quantity: '', weightCatty: '' }]);
     })().catch((e: Error) => setError(e.message));
   }, [farmId, today]);
 
@@ -72,7 +73,7 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
       avgEggWeight: Number(eggWeight),
       note: note.trim(),
       items: items.map((i) => ({
-        kind: i.kind,
+        packageId: i.packageId,
         grade: i.grade,
         quantity: Number(i.quantity),
         weightCatty: Number(i.weightCatty),
@@ -106,7 +107,7 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
     try {
       await api('POST', '/shipments', { ...input, farmId });
       const customer = customers.find((c) => c.id === customerId)?.name ?? '';
-      const lines = calc.items.map((i) => `${i.grade} ${i.quantity}${QTY_UNIT[i.kind]}｜${fmt(i.netCatty)} 台斤｜約 ${fmt(i.eggs)} 顆`);
+      const lines = calc.items.map((i) => `${i.packageName} ${i.grade} ${i.quantity}${i.unit}｜${fmt(i.netCatty)} 台斤｜約 ${fmt(i.eggs)} 顆`);
       setSaved({
         customer,
         summary: [`【${farm!.name} 出貨單】${today}`, `客戶：${customer}`, ...lines, `合計：${fmt(calc.totalCatty)} 台斤，約 ${fmt(calc.totalEggs)} 顆`].join('\n'),
@@ -179,6 +180,7 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
 
         {items.map((it, idx) => {
           const c = calc.items[idx];
+          const pkg = findPackage(settings, it.packageId);
           const err = submitted ? v.itemErrors[idx] : '';
           const warn = v.itemWarnings[idx];
           return (
@@ -191,12 +193,14 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
                   </button>
                 )}
               </h2>
-              <div className="segmented">
-                {(['box', 'cart'] as const).map((k) => (
-                  <button type="button" key={k} className={it.kind === k ? 'on' : ''} onClick={() => setItem(idx, { kind: k })}>
-                    {k === 'box' ? '原料箱' : '蛋盤車'}
-                  </button>
-                ))}
+              <div className="segmented wrap">
+                {settings.packages
+                  .filter((p) => p.active)
+                  .map((p) => (
+                    <button type="button" key={p.id} className={it.packageId === p.id ? 'on' : ''} onClick={() => setItem(idx, { packageId: p.id })}>
+                      {p.name}
+                    </button>
+                  ))}
               </div>
               <div className="grid">
                 <label className="field">
@@ -208,25 +212,25 @@ export function ShipmentForm({ me, go }: { me: WithId<User>; go: (r: Route) => v
                   </select>
                 </label>
                 <label className="field">
-                  <span>{it.kind === 'box' ? '箱數' : '車數'}</span>
+                  <span>{pkg?.unit ?? ''}數</span>
                   <div className="input-unit">
                     <input inputMode="numeric" value={it.quantity} onChange={(e) => setItem(idx, { quantity: e.target.value })} />
-                    <em>{QTY_UNIT[it.kind]}</em>
+                    <em>{pkg?.unit}</em>
                   </div>
                 </label>
-                {it.kind === 'cart' ? (
+                {pkg && needsWeight(pkg) ? (
                   <label className="field">
-                    <span>上車總重</span>
+                    <span>{pkg.weightMode === 'gross' ? '總重' : '淨重'}</span>
                     <div className="input-unit">
                       <input inputMode="decimal" value={it.weightCatty} onChange={(e) => setItem(idx, { weightCatty: e.target.value })} />
                       <em>台斤</em>
                     </div>
-                    <small className="muted">每車扣 {settings.cartTareKg} kg</small>
+                    <small className="muted">{weightHint(pkg)}</small>
                   </label>
                 ) : (
                   <div className="field">
                     <span>重量</span>
-                    <p className="fixed-value">每箱 {settings.boxCatty} 台斤</p>
+                    <p className="fixed-value">{pkg ? weightHint(pkg) : '–'}</p>
                   </div>
                 )}
               </div>
