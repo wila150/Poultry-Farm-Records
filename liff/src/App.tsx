@@ -6,7 +6,7 @@ import { History } from './pages/History';
 import { RecordForm } from './pages/RecordForm';
 import { ShipmentForm } from './pages/ShipmentForm';
 import { Today } from './pages/Today';
-import { boot, type BootStatus } from './session';
+import { api, boot, type BootStatus } from './session';
 
 export type Route =
   | { page: 'today' }
@@ -24,6 +24,11 @@ export function App() {
     boot()
       .then(async (s) => {
         if (s === 'redirecting') return;
+        // 系統還沒有老闆帳號時，第一個使用者到後台做初始設定
+        if (s === 'new' && (await api<{ needed: boolean }>('GET', '/setup')).needed) {
+          location.assign('/admin/');
+          return;
+        }
         setStatus(s);
         if (s === 'active') setMe(await loadMe());
       })
