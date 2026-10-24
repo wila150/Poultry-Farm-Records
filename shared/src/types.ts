@@ -11,6 +11,26 @@ export interface Farm {
   weatherStationId: string | null;
   /** 未設定的項目使用 DEFAULT_SHIPMENT_SETTINGS */
   shipmentSettings?: Partial<ShipmentSettings>;
+  /** 後台自訂的每日紀錄填寫項目 */
+  customFields?: CustomField[];
+}
+
+export const FIELD_GROUPS = ['雞隻', '產蛋', '飼養', '環境', '其他'] as const;
+export type FieldGroup = (typeof FIELD_GROUPS)[number];
+export type CustomFieldType = 'number' | 'integer' | 'text';
+
+/**
+ * 自訂填寫項目。key 由系統產生且永不改變，改名稱不影響已填的資料；
+ * 停用（active=false）只是不再顯示，資料保留。
+ */
+export interface CustomField {
+  key: string;
+  label: string;
+  unit: string;
+  type: CustomFieldType;
+  group: FieldGroup;
+  required: boolean;
+  active: boolean;
 }
 
 export interface House {
@@ -53,6 +73,8 @@ export interface DailyRecordInput {
   tempMin: number | null;
   humidity: number | null;
   note: string;
+  /** 自訂項目的值，以 CustomField.key 為鍵 */
+  custom: Record<string, number | string | null>;
 }
 
 export interface DailyRecord extends DailyRecordInput {

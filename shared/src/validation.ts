@@ -2,12 +2,16 @@
 // errors 會擋下送出；warnings 只提醒，使用者確認後可送出。
 
 import { taipeiDate, isValidDate } from './dates';
-import { DAILY_RECORD_FIELDS, type DailyRecordInput } from './types';
+import { DAILY_RECORD_FIELDS, type CustomField, type DailyRecordInput } from './types';
 
+/** 鍵為欄位名稱；自訂項目為 custom.<key> */
 export interface ValidationResult {
-  errors: Partial<Record<keyof DailyRecordInput | 'date', string>>;
-  warnings: Partial<Record<keyof DailyRecordInput, string>>;
+  errors: Record<string, string>;
+  warnings: Record<string, string>;
 }
+
+export const customFieldName = (key: string) => `custom.${key}`;
+const activeFields = (fields: CustomField[]) => fields.filter((f) => f.active);
 
 const REQUIRED_INTS = ['birdCount', 'deaths', 'culls', 'eggsTotal', 'eggsBroken'] as const;
 const OPTIONAL_NUMS = ['avgEggWeight', 'feedKg', 'waterL', 'tempMax', 'tempMin', 'humidity'] as const;
@@ -19,6 +23,7 @@ export function validateDailyRecord(
   input: DailyRecordInput,
   date: string,
   today: string = taipeiDate(),
+  customFields: CustomField[] = [],
 ): ValidationResult {
   const errors: ValidationResult['errors'] = {};
   const warnings: ValidationResult['warnings'] = {};
@@ -37,6 +42,20 @@ export function validateDailyRecord(
   }
   if (typeof input.note !== 'string') errors.note = '備註格式錯誤';
   else if (input.note.length > 500) errors.note = '備註最多 500 字';
+
+  for (const f of activeFields(customFields)) {
+    const v = input.custom?.[f.key] ?? null;
+    const name = customFieldName(f.key);
+    if (v === null || v === '') {
+      if (f.required) errors[name] = '必填';
+    } else if (f.type === 'text') {
+      if (typeof v !== 'string' || v.length > 200) errors[name] = '最多 200 字';
+    } else if (typeof v !== 'number' || !Number.isFinite(v)) {
+      errors[name] = '請填數字';
+    } else if (f.type === 'integer' && !Number.isInteger(v)) {
+      errors[name] = '請填整數';
+    }
+  }
 
   if (Object.keys(errors).length > 0) return { errors, warnings };
 
@@ -59,15 +78,24 @@ export function validateDailyRecord(
   return { errors, warnings };
 }
 
-/** 把未知輸入整理成 DailyRecordInput；空字串、undefined 視為 null，多餘欄位丟掉 */
-export function normalizeDailyRecordInput(raw: Record<string, unknown>): DailyRecordInput {
+const toNumberOrNull = (v: unknown) =>
+  v === '' || v === undefined || v === null ? null : typeof v === 'string' ? Number(v) : v;
+
+/** 把未知輸入整理成 DailyRecordInput；空字串、undefined 視為 null，多餘欄位與停用的自訂項目丟掉 */
+export function normalizeDailyRecordInput(raw: Record<string, unknown>, customFields: CustomField[] = []): DailyRecordInput {
   const out: Record<string, unknown> = {};
   for (const k of DAILY_RECORD_FIELDS) {
     const v = raw[k];
-    if (k === 'note') out[k] = typeof v === 'string' ? v.trim() : '';
-    else if (v === '' || v === undefined || v === null) out[k] = null;
-    else out[k] = typeof v === 'string' ? Number(v) : v;
+    out[k] = k === 'note' ? (typeof v === 'string' ? v.trim() : '') : toNumberOrNull(v);
   }
+  const rawCustom = (raw.custom ?? {}) as Record<string, unknown>;
+  const custom: Record<string, unknown> = {};
+  for (const f of activeFields(customFields)) {
+    const v = rawCustom[f.key];
+    if (f.type === 'text') custom[f.key] = typeof v === 'string' && v.trim() ? v.trim() : null;
+    else custom[f.key] = toNumberOrNull(v);
+  }
+  out.custom = custom;
   return out as unknown as DailyRecordInput;
 }
 

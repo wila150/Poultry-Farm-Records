@@ -36,6 +36,7 @@ export function Progress({ me }: { me: WithId<User> }) {
         const list = houses?.filter((h) => h.farmId === farm.id) ?? [];
         if (list.length === 0) return null;
         const done = list.filter((h) => records.has(h.id)).length;
+        const custom = (farm.customFields ?? []).filter((f) => f.active);
         return (
           <section key={farm.id} className="card">
             <h2>
@@ -57,6 +58,9 @@ export function Progress({ me }: { me: WithId<User> }) {
                     <th>死淘</th>
                     <th>死淘率</th>
                     <th>最高溫</th>
+                    {custom.map((f) => (
+                      <th key={f.key}>{f.label}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -73,6 +77,9 @@ export function Progress({ me }: { me: WithId<User> }) {
                         <td>{r ? r.deaths + r.culls : '–'}</td>
                         <td>{r ? pct(mortalityRate(r)) : '–'}</td>
                         <td>{r?.tempMax ?? '–'}</td>
+                        {custom.map((f) => (
+                          <td key={f.key}>{r?.custom?.[f.key] ?? '–'}</td>
+                        ))}
                       </tr>
                     );
                   })}

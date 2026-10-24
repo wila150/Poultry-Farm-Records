@@ -1,22 +1,27 @@
+import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   addDays,
+  customFieldName,
   DAILY_RECORD_FIELDS,
   hasErrors,
   layingRate,
   normalizeDailyRecordInput,
   taipeiDate,
   validateDailyRecord,
+  type CustomField,
   type DailyRecordInput,
+  type Farm,
   type House,
   type User,
 } from '../../../shared/src';
 import type { Route } from '../App';
 import { loadRecord, type WithId } from '../data';
-import { api, ApiError, closeLiff } from '../session';
+import { api, ApiError, closeLiff, db } from '../session';
 
 type Field = (typeof DAILY_RECORD_FIELDS)[number];
-type Values = Record<Field, string>;
+// 自訂項目以 custom.<key> 存在同一份表單值裡
+type Values = Record<string, string>;
 
 interface FieldDef {
   key: Exclude<Field, 'note'>;
@@ -59,10 +64,26 @@ const GROUPS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
+GROUPS.push({ title: '其他', fields: [] });
+
 const EMPTY: Values = Object.fromEntries(DAILY_RECORD_FIELDS.map((f) => [f, ''])) as Values;
 
-const toValues = (r: Partial<Record<Field, unknown>>): Values =>
-  Object.fromEntries(DAILY_RECORD_FIELDS.map((f) => [f, r[f] === null || r[f] === undefined ? '' : String(r[f])])) as Values;
+const str = (v: unknown) => (v === null || v === undefined ? '' : String(v));
+
+const toValues = (r: Partial<Record<Field, unknown>> & { custom?: Record<string, unknown> }): Values => ({
+  ...Object.fromEntries(DAILY_RECORD_FIELDS.map((f) => [f, str(r[f])])),
+  ...Object.fromEntries(Object.entries(r.custom ?? {}).map(([k, v]) => [customFieldName(k), str(v)])),
+});
+
+/** 表單值 → API 格式（custom.<key> 收進 custom） */
+function toRaw(values: Values) {
+  const raw: Record<string, unknown> = { custom: {} };
+  for (const [k, v] of Object.entries(values)) {
+    if (k.startsWith('custom.')) (raw.custom as Record<string, string>)[k.slice(7)] = v;
+    else raw[k] = v;
+  }
+  return raw;
+}
 
 // 草稿存在手機瀏覽器，農場訊號差也不會遺失。讀寫失敗時當作沒有草稿。
 const draftKey = (houseId: string, date: string) => `draft:${houseId}:${date}`;
@@ -95,6 +116,7 @@ export function RecordForm({ me, house, date, go }: Props) {
   const readOnly = me.role === 'staff' && date < addDays(taipeiDate(), -1);
 
   const [values, setValues] = useState<Values | null>(null);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [exists, setExists] = useState(false);
   const [fromDraft, setFromDraft] = useState(false);
   const [birdCountFrom, setBirdCountFrom] = useState<string | null>(null);
@@ -109,7 +131,8 @@ export function RecordForm({ me, house, date, go }: Props) {
 
   useEffect(() => {
     (async () => {
-      const rec = await loadRecord(house.id, date);
+      const [rec, farm] = await Promise.all([loadRecord(house.id, date), getDoc(doc(db, 'farms', house.farmId))]);
+      setCustomFields(((farm.data() as Farm | undefined)?.customFields ?? []).filter((f) => f.active));
       setExists(!!rec);
       let base: Values;
       if (rec) {
@@ -129,11 +152,14 @@ export function RecordForm({ me, house, date, go }: Props) {
     })().catch((e: Error) => setError(e.message));
   }, [house.id, date, key, readOnly]);
 
-  const input = useMemo(() => (values ? normalizeDailyRecordInput(values) : null), [values]);
-  const result = useMemo(() => (input ? validateDailyRecord(input, date) : null), [input, date]);
+  const input = useMemo(() => (values ? normalizeDailyRecordInput(toRaw(values), customFields) : null), [values, customFields]);
+  const result = useMemo(
+    () => (input ? validateDailyRecord(input, date, undefined, customFields) : null),
+    [input, date, customFields],
+  );
   const rate = input && input.birdCount > 0 ? layingRate(input) : null;
 
-  function set(field: Field, v: string) {
+  function set(field: string, v: string) {
     setValues((prev) => {
       const next = { ...prev!, [field]: v };
       writeDraft(key, next);
@@ -230,7 +256,10 @@ export function RecordForm({ me, house, date, go }: Props) {
 
       <form onSubmit={submit}>
         <fieldset disabled={readOnly || busy}>
-          {GROUPS.map((g) => (
+          {GROUPS.map((g) => {
+            const extra = customFields.filter((f) => f.group === g.title);
+            if (g.fields.length === 0 && extra.length === 0) return null;
+            return (
             <section key={g.title} className="card">
               <h2>{g.title}</h2>
               <div className="grid">
@@ -255,6 +284,29 @@ export function RecordForm({ me, house, date, go }: Props) {
                     {!errorFor(f.key) && warningFor(f.key) && <small className="warn">{warningFor(f.key)}</small>}
                   </label>
                 ))}
+                {extra.map((f) => {
+                  const name = customFieldName(f.key);
+                  return (
+                    <label key={name} className={`field ${f.type === 'text' ? 'wide' : ''}`}>
+                      <span>
+                        {f.label}
+                        {f.required && <b className="req"> *</b>}
+                      </span>
+                      <div className="input-unit">
+                        <input
+                          type="text"
+                          inputMode={f.type === 'text' ? 'text' : f.type === 'integer' ? 'numeric' : 'decimal'}
+                          value={values[name] ?? ''}
+                          onChange={(e) => set(name, e.target.value)}
+                          onBlur={() => setTouched((t) => new Set(t).add(name))}
+                          aria-invalid={!!errorFor(name)}
+                        />
+                        {f.unit && <em>{f.unit}</em>}
+                      </div>
+                      {errorFor(name) && <small className="error">{errorFor(name)}</small>}
+                    </label>
+                  );
+                })}
               </div>
               {g.title === '產蛋' && (
                 <p className="metric">
@@ -262,7 +314,8 @@ export function RecordForm({ me, house, date, go }: Props) {
                 </p>
               )}
             </section>
-          ))}
+            );
+          })}
 
           <section className="card">
             <h2>備註</h2>

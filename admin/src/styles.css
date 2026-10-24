@@ -255,3 +255,12 @@ td .badge { margin-left: 6px; }
   body, .content { background: #fff; padding: 0; }
   .invoice { border: 0; padding: 0; max-width: none; }
 }
+
+/* ---- 填寫項目、匯出 ---- */
+td input[type='checkbox'] { width: 18px; height: 18px; }
+td.order { white-space: nowrap; }
+td.order .link { padding: 0 4px; }
+.notice.ok { background: var(--ok-bg); color: var(--ok); }
+.export-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 8px; }
+.export-item { border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.export-item h3 { margin: 0 0 4px; font-size: 16px; }

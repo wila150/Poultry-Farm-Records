@@ -3,7 +3,16 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { managesFarm, requireManager } from '../lib/auth';
 import { db } from '../lib/firebase';
 import { badRequest, conflict, forbidden, notFound } from '../lib/http';
-import { DEFAULT_ALERT_RULES, isValidDate, type Farm, type House, type User } from '../shared';
+import { randomBytes } from 'node:crypto';
+import {
+  DEFAULT_ALERT_RULES,
+  FIELD_GROUPS,
+  isValidDate,
+  type CustomField,
+  type Farm,
+  type House,
+  type User,
+} from '../shared';
 
 export const adminRouter = Router();
 
@@ -102,5 +111,38 @@ adminRouter.put('/houses/:id', async (req, res) => {
   if (!snap.exists) throw notFound();
   if (!managesFarm(me, snap.get('farmId'))) throw forbidden();
   await ref.update({ ...houseInput(req.body ?? {}) });
+  res.json({ ok: true });
+});
+
+/**
+ * 儲存自訂填寫項目（整份清單，依送來的順序）。
+ * 新項目由系統產生 key；送來的清單裡少了的舊項目不會刪除，改為停用並排在最後，已填的資料保留。
+ */
+adminRouter.put('/farms/:id/custom-fields', async (req, res) => {
+  const me = requireManager(req);
+  if (!managesFarm(me, req.params.id)) throw forbidden();
+  const ref = db.doc(`farms/${req.params.id}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw notFound();
+  const existing = ((snap.data() as Farm).customFields ?? []) as CustomField[];
+  const known = new Set(existing.map((f) => f.key));
+
+  const raw: Record<string, unknown>[] = Array.isArray(req.body?.fields) ? req.body.fields : [];
+  if (raw.length > 50) throw badRequest('項目太多（最多 50 個）');
+  const fields: CustomField[] = raw.map((f) => {
+    const label = str(f.label, 20);
+    if (!label) throw badRequest('請填寫項目名稱');
+    const type = (['number', 'integer', 'text'] as const).find((t) => t === f.type) ?? 'number';
+    const group = FIELD_GROUPS.find((g) => g === f.group) ?? '其他';
+    const key = typeof f.key === 'string' && known.has(f.key) ? f.key : `f${randomBytes(4).toString('hex')}`;
+    return { key, label, unit: str(f.unit, 10), type, group, required: f.required === true, active: f.active !== false };
+  });
+
+  const labels = fields.filter((f) => f.active).map((f) => f.label);
+  if (new Set(labels).size !== labels.length) throw badRequest('啟用中的項目名稱不能重複');
+  const sent = new Set(fields.map((f) => f.key));
+  const kept = existing.filter((f) => !sent.has(f.key)).map((f) => ({ ...f, active: false }));
+
+  await ref.update({ customFields: [...fields, ...kept] });
   res.json({ ok: true });
 });

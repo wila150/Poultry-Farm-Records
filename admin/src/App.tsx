@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { User } from '../../shared/src';
 import { loadMe, type WithId } from './data';
+import { Export } from './pages/Export';
+import { Fields } from './pages/Fields';
 import { Houses } from './pages/Houses';
 import { Progress } from './pages/Progress';
 import { Setup } from './pages/Setup';
@@ -13,6 +15,8 @@ const PAGES = {
   shipments: { label: '出貨單', Component: Shipments },
   users: { label: '人員管理', Component: Users },
   houses: { label: '雞場與雞舍', Component: Houses },
+  fields: { label: '填寫項目', Component: Fields },
+  export: { label: '匯出資料', Component: Export },
 } as const;
 type PageKey = keyof typeof PAGES;
 

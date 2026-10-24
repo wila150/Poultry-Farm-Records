@@ -56,3 +56,16 @@ export async function loadShipments(farmId: string, from: string, to: string): P
   );
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Shipment) })).sort((a, b) => b.no.localeCompare(a.no));
 }
+
+export async function loadRecordsBetween(farmId: string, from: string, to: string): Promise<DailyRecord[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'dailyRecords'),
+      where('farmId', '==', farmId),
+      where('date', '>=', from),
+      where('date', '<=', to),
+      orderBy('date', 'desc'),
+    ),
+  );
+  return snap.docs.map((d) => d.data() as DailyRecord);
+}

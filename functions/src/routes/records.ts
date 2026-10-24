@@ -14,6 +14,7 @@ import {
   taipeiDate,
   validateDailyRecord,
   type DailyRecord,
+  type Farm,
   type House,
 } from '../shared';
 
@@ -67,8 +68,10 @@ recordsRouter.put('/records/:houseId/:date', async (req, res) => {
   if (!house.active) throw badRequest('雞舍已停用');
   assertCanEdit(user, house, date);
 
-  const input = normalizeDailyRecordInput(req.body ?? {});
-  const result = validateDailyRecord(input, date);
+  const farm = (await db.doc(`farms/${house.farmId}`).get()).data() as Farm | undefined;
+  const customFields = farm?.customFields ?? [];
+  const input = normalizeDailyRecordInput(req.body ?? {}, customFields);
+  const result = validateDailyRecord(input, date, undefined, customFields);
   if (hasErrors(result)) throw badRequest('資料有誤', result.errors);
 
   const ref = db.doc(`dailyRecords/${recordId(house.id, date)}`);
@@ -91,11 +94,18 @@ recordsRouter.put('/records/:houseId/:date', async (req, res) => {
     }
 
     const old = snap.data() as DailyRecord;
-    const changed = DAILY_RECORD_FIELDS.filter((f) => old[f] !== input[f]);
-    if (changed.length === 0) return false;
-    tx.update(ref, { ...input, updatedBy: user.id, updatedAt: now });
-    for (const field of changed) {
-      tx.set(ref.collection('logs').doc(), { field, oldValue: old[field], newValue: input[field], by: user.id, at: now });
+    const oldCustom = old.custom ?? {};
+    const changes = [
+      ...DAILY_RECORD_FIELDS.filter((f) => old[f] !== input[f]).map((f) => ({ field: f as string, oldValue: old[f], newValue: input[f] })),
+      ...Object.keys(input.custom)
+        .filter((k) => (oldCustom[k] ?? null) !== input.custom[k])
+        .map((k) => ({ field: `custom.${k}`, oldValue: oldCustom[k] ?? null, newValue: input.custom[k] })),
+    ];
+    if (changes.length === 0) return false;
+    // 停用項目的舊值保留
+    tx.update(ref, { ...input, custom: { ...oldCustom, ...input.custom }, updatedBy: user.id, updatedAt: now });
+    for (const c of changes) {
+      tx.set(ref.collection('logs').doc(), { ...c, by: user.id, at: now });
     }
     return false;
   });
